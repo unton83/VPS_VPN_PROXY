@@ -13,7 +13,7 @@
 ### Развертывание в Одну Команду
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/unton83/VPS_VPN_PROXY/master/deploy-online.sh | bash
+curl -fsSL https://raw.githubusercontent.com/unton83/VPS_VPN_PROXY/master/deploy.sh | bash
 ```
 
 ### Ручное Развертывание

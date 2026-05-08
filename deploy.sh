@@ -127,7 +127,13 @@ echo "2) Telegram Proxy only (telemt)"
 echo "3) Both HTTP Proxy and Telegram Proxy"
 echo "4) Exit"
 echo ""
-read -p "Enter choice [1-4]: " CHOICE
+# Only read input if no piped input is available
+if [ -t 0 ]; then
+    read -p "Enter choice [1-4]: " CHOICE
+else
+    # Input is piped, use it
+    CHOICE="3"
+fi
 
 case $CHOICE in
     1) DEPLOY_HTTP=true; DEPLOY_TELEGRAM=false ;;

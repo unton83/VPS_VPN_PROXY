@@ -13,7 +13,7 @@ One-command deployment of proxy services on low-resource VPS (1CPU, 1GB RAM, 5GB
 ### One-Line Deployment
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/unton83/VPS_VPN_PROXY/master/deploy-online.sh | bash
+curl -fsSL https://raw.githubusercontent.com/unton83/VPS_VPN_PROXY/master/deploy.sh | bash
 ```
 
 ### Manual Deployment
