@@ -13,7 +13,7 @@
 ### Развертывание в Одну Команду
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/unton83/VPS_VPN_PROXY/master/deploy.sh)
+bash <(curl -fsSL -H 'Cache-Control: no-cache, no-store' -H 'Pragma: no-cache' https://raw.githubusercontent.com/unton83/VPS_VPN_PROXY/master/deploy.sh)
 ```
 
 ### Ручное Развертывание
