@@ -237,7 +237,7 @@ ok "System preparation completed"
 
 # ── 2. Service Selection ───────────────────────────────
 echo ""
-echo -e "${YELLOW}Select services to deploy:${NC}"
+echo -e "${YELLOW}Select services to be deployed:${NC}"
 echo "1) HTTP Proxy only (3proxy)"
 echo "2) Telegram Proxy only (telemt)"
 echo "3) Both HTTP Proxy and Telegram Proxy"
