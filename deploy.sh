@@ -12,6 +12,24 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Logging functions
+log() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+err() {
+    echo -e "${RED}[ERROR]${NC} $1"
+    exit 1
+}
+
+ok() {
+    echo -e "${GREEN}[OK]${NC} $1"
+}
+
 # Check if running from curl or local
 if [ -t 0 ]; then
     # Running from curl - download to user home
@@ -49,25 +67,7 @@ else
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
 
-# Logging functions
-log() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-err() {
-    echo -e "${RED}[ERROR]${NC} $1"
-    exit 1
-}
-
-ok() {
-    echo -e "${GREEN}[OK]${NC} $1"
-}
-
-# ── 1. System Preparation ───────────────────────────────────────
+# ── 1. System Preparation ───────────────────────────────
 log "Starting system preparation..."
 
 # Detect OS and version
@@ -153,7 +153,7 @@ install_dependencies() {
 
 ok "System preparation completed"
 
-# ── 2. Service Selection ───────────────────────────────────────
+# ── 2. Service Selection ───────────────────────────────
 echo ""
 echo -e "${YELLOW}Select services to deploy:${NC}"
 echo "1) HTTP Proxy only (3proxy)"
@@ -177,7 +177,7 @@ case $CHOICE in
     *) err "Invalid choice" ;;
 esac
 
-# ── 3. HTTP Proxy Setup ─────────────────────────────────────────
+# ── 3. HTTP Proxy Setup ─────────────────────────────────
 if [ "$DEPLOY_HTTP" = true ]; then
     echo ""
     log "Setting up HTTP Proxy (3proxy)..."
@@ -198,7 +198,7 @@ EOF
     ok "HTTP Proxy configured"
 fi
 
-# ── 4. Telegram Proxy Setup ─────────────────────────────────────────
+# ── 4. Telegram Proxy Setup ─────────────────────────────────
 if [ "$DEPLOY_TELEGRAM" = true ]; then
     echo ""
     log "Setting up Telegram Proxy (telemt)..."
@@ -233,7 +233,7 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     ok "Telegram Proxy configured"
 fi
 
-# ── 5. Deploy Services ─────────────────────────────────────────
+# ── 5. Deploy Services ─────────────────────────────────
 echo ""
 log "Deploying services..."
 
@@ -295,7 +295,7 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     cd "$SCRIPT_DIR"
 fi
 
-# ── 6. Configure Fail2Ban ─────────────────────────────────────────
+# ── 6. Configure Fail2Ban ─────────────────────────────────
 log "Configuring Fail2Ban after service deployment..."
 
 # Configure fail2ban (now that containers are running)
@@ -331,10 +331,10 @@ sudo systemctl status fail2ban --no-pager -l
 
 ok "Fail2Ban configuration completed"
 
-# ── 7. Display Results ─────────────────────────────────────────
+# ── 7. Display Results ─────────────────────────────────
 echo ""
 echo "  ✅ Deployment complete!"
-echo "  ─────────────────────────────────────────────────────"
+echo "  ─────────────────────────────────────────────"
 echo ""
 
 if [ "$DEPLOY_HTTP" = true ]; then
