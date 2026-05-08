@@ -81,7 +81,7 @@ run_deployment() {
     # Make deploy script executable
     chmod +x deploy.sh
     
-    # Run deployment script
+    # Run deployment script interactively
     ./deploy.sh
 }
 

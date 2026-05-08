@@ -111,14 +111,21 @@ fi
 ok "Fail2Ban installation completed"
 
 # ── 3. Service Selection ───────────────────────────────────────────────
-echo ""
-echo -e "${YELLOW}Select services to deploy:${NC}"
-echo "1) HTTP Proxy only (3proxy)"
-echo "2) Telegram Proxy only (telemt)"
-echo "3) Both HTTP Proxy and Telegram Proxy"
-echo "4) Exit"
-echo ""
-read -p "Enter choice [1-4]: " CHOICE
+# Check if input is already piped in
+if [ -t 0 ]; then
+    # Input is piped, use it
+    read CHOICE
+else
+    # No piped input, show menu
+    echo ""
+    echo -e "${YELLOW}Select services to deploy:${NC}"
+    echo "1) HTTP Proxy only (3proxy)"
+    echo "2) Telegram Proxy only (telemt)"
+    echo "3) Both HTTP Proxy and Telegram Proxy"
+    echo "4) Exit"
+    echo ""
+    read -p "Enter choice [1-4]: " CHOICE
+fi
 
 case $CHOICE in
     1) DEPLOY_HTTP=true; DEPLOY_TELEGRAM=false ;;
