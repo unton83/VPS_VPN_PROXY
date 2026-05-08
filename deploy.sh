@@ -386,7 +386,7 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
             --agree-tos \
             --no-eff-email \
             --domain "$DOMAIN"; then
-            err "Failed to obtain Let's Encrypt certificate"
+            err "Failed to obtain Let's Encrypt certificate :("
         fi
         
         # Enable SSL on nginx
