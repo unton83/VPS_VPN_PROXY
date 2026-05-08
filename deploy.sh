@@ -110,7 +110,28 @@ update_system() {
 install_docker() {
     if ! command -v docker >/dev/null 2>&1; then
         log "Installing Docker..."
-        apt install -y docker.io
+        
+        # Add Docker's official GPG key
+        apt update
+        apt install -y ca-certificates curl
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+        chmod a+r /etc/apt/keyrings/docker.asc
+        
+        # Add repository to Apt sources
+        tee /etc/apt/sources.list.d/docker.sources > /dev/null <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/debian
+Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+        
+        # Install Docker packages
+        apt update
+        apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        
         systemctl start docker
         systemctl enable docker
         ok "Docker installed and started"
@@ -118,9 +139,9 @@ install_docker() {
         log "Docker already installed"
     fi
     
-    # Install Docker Compose if not present
+    # Check Docker Compose availability
     if ! command -v docker compose >/dev/null 2>&1; then
-        log "Installing Docker Compose..."
+        log "Docker Compose not available, installing..."
         apt install -y docker-compose-plugin
         ok "Docker Compose installed"
     else
