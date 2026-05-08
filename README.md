@@ -13,14 +13,14 @@ One-command deployment of proxy services on low-resource VPS (1CPU, 1GB RAM, 5GB
 ### One-Line Deployment
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/VPS_VPN_PROXY/main/deploy.sh | bash
+curl -fsSL https://raw.githubusercontent.com/unton83/VPS_VPN_PROXY/master/install.sh | bash
 ```
 
 ### Manual Deployment
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/VPS_VPN_PROXY.git
+git clone https://github.com/unton83/VPS_VPN_PROXY.git
 cd VPS_VPN_PROXY
 
 # Make deploy script executable
@@ -130,15 +130,14 @@ sudo fail2ban-client banned
 
 ```
 VPS_VPN_PROXY/
+├── install.sh                   # One-line installer
 ├── deploy.sh                    # Main deployment script
 ├── README.md                    # This file
 ├── README_RU.md                 # Russian documentation
 ├── manage.sh                    # Service management script
 ├── fail2ban/                   # Fail2Ban configuration
 │   ├── jail.local              # Main jail configuration
-│   ├── nginx-http-auth.conf   # HTTP auth filter
-│   ├── nginx-limit-req.conf   # Rate limiting filter
-│   └── nginx-botsearch.conf    # Bot protection filter
+│   └── docker-nginx.conf      # Docker nginx filter
 ├── http-proxy/                  # 3proxy service files
 │   ├── 3proxy.cfg              # 3proxy configuration
 │   ├── 3proxy.passwd           # Generated passwords

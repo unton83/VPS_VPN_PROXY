@@ -13,14 +13,14 @@
 ### Развертывание в Одну Команду
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/VPS_VPN_PROXY/main/deploy.sh | bash
+curl -fsSL https://raw.githubusercontent.com/unton83/VPS_VPN_PROXY/master/install.sh | bash
 ```
 
 ### Ручное Развертывание
 
 ```bash
 # Клонировать репозиторий
-git clone https://github.com/YOUR_USERNAME/VPS_VPN_PROXY.git
+git clone https://github.com/unton83/VPS_VPN_PROXY.git
 cd VPS_VPN_PROXY
 
 # Сделать скрипт развертывания исполняемым
@@ -129,15 +129,14 @@ sudo fail2ban-client banned
 
 ```
 VPS_VPN_PROXY/
+├── install.sh                   # Однострочный установщик
 ├── deploy.sh                    # Основной скрипт развертывания
 ├── README.md                    # Английская версия документации
 ├── README_RU.md                 # Русская версия документации
 ├── manage.sh                    # Скрипт управления сервисами
 ├── fail2ban/                   # Конфигурация Fail2Ban
 │   ├── jail.local              # Основная конфигурация jail
-│   ├── nginx-http-auth.conf   # Фильтр HTTP аутентификации
-│   ├── nginx-limit-req.conf   # Фильтр ограничения скорости
-│   └── nginx-botsearch.conf    # Фильтр защиты от ботов
+│   └── docker-nginx.conf      # Фильтр Docker nginx
 ├── http-proxy/                  # Файлы сервиса 3proxy
 │   ├── 3proxy.cfg              # Конфигурация 3proxy
 │   ├── 3proxy.passwd           # Генерируемые пароли
