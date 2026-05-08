@@ -12,8 +12,42 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Check if running from curl or local
+if [ -t 0 ]; then
+    # Running from curl - download to user home
+    USER_HOME="$HOME"
+    PROJECT_DIR="$USER_HOME/VPS_VPN_PROXY"
+    SCRIPT_DIR="$PROJECT_DIR"
+    
+    log "Running from curl - setting up in $PROJECT_DIR"
+    
+    # Download and extract to user home
+    if [ ! -d "$PROJECT_DIR" ]; then
+        cd "$USER_HOME"
+        
+        # Download repository as tarball
+        REPO_URL="https://github.com/unton83/VPS_VPN_PROXY/archive/master.tar.gz"
+        log "Downloading repository to $PROJECT_DIR..."
+        if ! curl -fsSL "$REPO_URL" -o repository.tar.gz; then
+            err "Failed to download repository"
+        fi
+        
+        # Extract archive
+        log "Extracting files..."
+        if ! tar -xzf repository.tar.gz; then
+            err "Failed to extract repository"
+        fi
+        
+        # Move to extracted directory
+        mv VPS_VPN_PROXY-master "$PROJECT_DIR"
+        rm -f repository.tar.gz
+        
+        ok "Repository downloaded and extracted to $PROJECT_DIR"
+    fi
+else
+    # Running locally - use script directory
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 
 # Logging functions
 log() {
