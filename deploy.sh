@@ -101,8 +101,8 @@ detect_os() {
 # Update system packages
 update_system() {
     log "Updating system packages..."
-    sudo apt update
-    sudo apt upgrade -y
+    apt update
+    apt upgrade -y
     ok "System packages updated"
 }
 
@@ -110,9 +110,9 @@ update_system() {
 install_docker() {
     if ! command -v docker >/dev/null 2>&1; then
         log "Installing Docker..."
-        sudo apt install -y docker.io
-        sudo systemctl start docker
-        sudo systemctl enable docker
+        apt install -y docker.io
+        systemctl start docker
+        systemctl enable docker
         ok "Docker installed and started"
     else
         log "Docker already installed"
@@ -121,7 +121,7 @@ install_docker() {
     # Install Docker Compose if not present
     if ! command -v docker compose >/dev/null 2>&1; then
         log "Installing Docker Compose..."
-        sudo apt install -y docker-compose-plugin
+        apt install -y docker-compose-plugin
         ok "Docker Compose installed"
     else
         log "Docker Compose already available"
@@ -135,7 +135,7 @@ install_dependencies() {
     # Install openssl if not present
     if ! command -v openssl >/dev/null 2>&1; then
         log "Installing openssl..."
-        sudo apt install -y openssl
+        apt install -y openssl
         ok "openssl installed"
     else
         log "openssl already installed"
@@ -144,7 +144,7 @@ install_dependencies() {
     # Install curl if not present
     if ! command -v curl >/dev/null 2>&1; then
         log "Installing curl..."
-        sudo apt install -y curl
+        apt install -y curl
         ok "curl installed"
     else
         log "curl already installed"
@@ -308,23 +308,23 @@ log "Configuring Fail2Ban after service deployment..."
 log "Setting up Fail2Ban with systemd backend..."
 
 # Create fail2ban configuration directory
-sudo mkdir -p /etc/fail2ban
+mkdir -p /etc/fail2ban
 
 # Copy configuration files
-sudo cp "$SCRIPT_DIR/fail2ban/jail.local" /etc/fail2ban/jail.local
-sudo mkdir -p /etc/fail2ban/filter.d
-sudo cp "$SCRIPT_DIR/fail2ban/docker-nginx.conf" /etc/fail2ban/filter.d/
+cp "$SCRIPT_DIR/fail2ban/jail.local" /etc/fail2ban/jail.local
+mkdir -p /etc/fail2ban/filter.d
+cp "$SCRIPT_DIR/fail2ban/docker-nginx.conf" /etc/fail2ban/filter.d/
 
 # Set proper permissions
-sudo chmod 644 /etc/fail2ban/jail.local
-sudo chmod 644 /etc/fail2ban/filter.d/docker-nginx.conf
+chmod 644 /etc/fail2ban/jail.local
+chmod 644 /etc/fail2ban/filter.d/docker-nginx.conf
 
 # Restart and enable fail2ban service
-sudo systemctl restart fail2ban
-sudo systemctl enable fail2ban
+systemctl restart fail2ban
+systemctl enable fail2ban
 
 # Check fail2ban status
-if sudo systemctl is-active --quiet fail2ban; then
+if systemctl is-active --quiet fail2ban; then
     ok "Fail2Ban is running and configured"
 else
     warn "Fail2Ban service is not running - manual check may be needed"
@@ -332,8 +332,8 @@ fi
 
 # Show fail2ban status
 log "Fail2Ban jails status:"
-sudo fail2ban-client status 2>/dev/null || log "Fail2Ban client not available, using systemctl status instead"
-sudo systemctl status fail2ban --no-pager -l
+fail2ban-client status 2>/dev/null || log "Fail2Ban client not available, using systemctl status instead"
+systemctl status fail2ban --no-pager -l
 
 ok "Fail2Ban configuration completed"
 
@@ -379,7 +379,7 @@ fi
 
 echo ""
 echo "  Fail2Ban management:"
-echo "    sudo fail2ban-client status"
-echo "    sudo fail2ban-client status nginx-http-auth"
-echo "    sudo fail2ban-client set sshd unbanip IP_ADDRESS"
+echo "    fail2ban-client status"
+echo "    fail2ban-client status nginx-http-auth"
+echo "    fail2ban-client set sshd unbanip IP_ADDRESS"
 echo ""
