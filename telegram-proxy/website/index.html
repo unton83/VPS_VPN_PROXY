@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="NexaHost — Reliable cloud hosting and VPS solutions for businesses worldwide." />
+  <title>NexaHost — Cloud & VPS Hosting</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+
+<header class="header">
+  <div class="container">
+    <div class="logo">Nexa<span>Host</span></div>
+    <nav class="nav">
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#contact">Contact</a>
+      <a href="/about.html">About</a>
+    </nav>
+    <a href="#pricing" class="btn btn-sm">Get Started</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <div class="hero-content">
+      <div class="badge">Trusted by 12,000+ customers</div>
+      <h1>Fast, reliable<br />cloud hosting</h1>
+      <p class="hero-sub">Deploy your applications in seconds with our global infrastructure. SSD-only storage, 99.9% uptime guarantee, and 24/7 expert support.</p>
+      <div class="hero-cta">
+        <a href="#pricing" class="btn">View Plans</a>
+        <a href="#features" class="btn btn-outline">Learn More</a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="server-card">
+        <div class="server-stat">
+          <span class="stat-label">Uptime</span>
+          <span class="stat-value">99.97%</span>
+        </div>
+        <div class="server-stat">
+          <span class="stat-label">Locations</span>
+          <span class="stat-value">18</span>
+        </div>
+        <div class="server-stat">
+          <span class="stat-label">Avg. Ping</span>
+          <span class="stat-value">4 ms</span>
+        </div>
+        <div class="server-dots">
+          <span class="dot active"></span>
+          <span class="dot active"></span>
+          <span class="dot active"></span>
+          <span class="dot"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="container">
+    <h2 class="section-title">Everything you need to scale</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>NVMe SSD Storage</h3>
+        <p>Up to 10x faster than standard SSDs. Your apps load instantly, every time.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌍</div>
+        <h3>Global Network</h3>
+        <p>18 data centers across Europe, North America, and Asia. Serve users closer to them.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>DDoS Protection</h3>
+        <p>Always-on protection against volumetric and application-layer attacks included free.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📦</div>
+        <h3>One-click Deploy</h3>
+        <p>Launch Docker, WordPress, or custom stacks in seconds from our control panel.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📈</div>
+        <h3>Auto Scaling</h3>
+        <p>Resources scale automatically with your traffic. Pay only for what you use.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🛠️</div>
+        <h3>24/7 Support</h3>
+        <p>Real engineers available around the clock. Average first response under 3 minutes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="pricing" id="pricing">
+  <div class="container">
+    <h2 class="section-title">Simple, transparent pricing</h2>
+    <div class="pricing-grid">
+      <div class="pricing-card">
+        <div class="plan-name">Starter</div>
+        <div class="plan-price">$5<span>/mo</span></div>
+        <ul class="plan-features">
+          <li>1 vCPU</li>
+          <li>1 GB RAM</li>
+          <li>25 GB NVMe</li>
+          <li>1 TB bandwidth</li>
+          <li>1 IPv4 address</li>
+        </ul>
+        <a href="#contact" class="btn btn-outline btn-full">Choose Plan</a>
+      </div>
+      <div class="pricing-card featured">
+        <div class="plan-badge">Most Popular</div>
+        <div class="plan-name">Standard</div>
+        <div class="plan-price">$12<span>/mo</span></div>
+        <ul class="plan-features">
+          <li>2 vCPU</li>
+          <li>4 GB RAM</li>
+          <li>80 GB NVMe</li>
+          <li>3 TB bandwidth</li>
+          <li>1 IPv4 + IPv6</li>
+        </ul>
+        <a href="#contact" class="btn btn-full">Choose Plan</a>
+      </div>
+      <div class="pricing-card">
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">$24<span>/mo</span></div>
+        <ul class="plan-features">
+          <li>4 vCPU</li>
+          <li>8 GB RAM</li>
+          <li>160 GB NVMe</li>
+          <li>5 TB bandwidth</li>
+          <li>2 IPv4 + IPv6</li>
+        </ul>
+        <a href="#contact" class="btn btn-outline btn-full">Choose Plan</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="contact" id="contact">
+  <div class="container">
+    <h2 class="section-title">Get in touch</h2>
+    <p class="contact-sub">Have questions? Our team is ready to help you choose the right plan.</p>
+    <form class="contact-form" onsubmit="return false;">
+      <input type="text" placeholder="Your name" required />
+      <input type="email" placeholder="Email address" required />
+      <textarea placeholder="Your message" rows="4"></textarea>
+      <button type="submit" class="btn">Send Message</button>
+    </form>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-top">
+      <div class="logo">Nexa<span>Host</span></div>
+      <div class="footer-links">
+        <a href="/about.html">About</a>
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#contact">Contact</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2024 NexaHost Ltd. All rights reserved.</p>
+      <div class="footer-legal">
+        <a href="#">Privacy Policy</a>
+        <a href="#">Terms of Service</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

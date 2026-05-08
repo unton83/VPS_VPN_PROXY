@@ -1,0 +1,39 @@
+# Port 8443 — HTTPS with real Let's Encrypt certificate
+# Internal only — telemt forwards unrecognized connections here via mask_host/mask_port.
+# Port 8443 is NOT exposed publicly; only telemt reaches it via the Docker internal network.
+server {
+    listen 8443 ssl;
+    server_name {{DOMAIN}};
+
+    ssl_certificate     /etc/letsencrypt/live/{{DOMAIN}}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{DOMAIN}}/privkey.pem;
+
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    root  /usr/share/nginx/html;
+    index index.html;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript text/html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /assets/ {
+        expires 7d;
+        add_header Cache-Control "public, max-age=604800, immutable";
+    }
+
+    access_log /var/log/nginx/cover_access.log;
+    error_log  /var/log/nginx/cover_error.log;
+}

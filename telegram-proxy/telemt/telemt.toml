@@ -1,0 +1,44 @@
+# Telemt MTProto Proxy Configuration
+# Docs: https://github.com/telemt/telemt
+
+# === General ===
+[general]
+use_middle_proxy = true
+log_level = "normal"
+
+[general.modes]
+classic = false
+secure = false
+tls = true          # FakeTLS (ee-prefix links) only
+
+[general.links]
+show = "*"          # Show proxy links for all users on startup
+
+# === Server ===
+[server]
+port = 443
+
+[[server.listeners]]
+ip = "0.0.0.0"      # Listen on all interfaces
+
+# === Anti-Censorship & Masking ===
+[censorship]
+# Domain used for FakeTLS SNI masking — must match your real domain
+tls_domain = "REPLACE_WITH_YOUR_DOMAIN"
+
+# Forward unrecognized (non-MTProto) connections to the cover website (nginx:8443)
+# mask_host points to nginx's internal Docker IP
+mask      = true
+mask_host = "172.29.0.10"
+mask_port = 8443
+
+# Fetch real TLS record lengths from tls_domain to emulate them precisely
+tls_emulation = true
+# Cache directory for TLS emulation data (inside container)
+tls_front_dir = "/data/tlsfront"
+
+# === Users & Secrets ===
+[access.users]
+# format: "username" = "32_hex_chars_secret"
+# Generate with: openssl rand -hex 16
+proxy = "REPLACE_WITH_YOUR_SECRET"

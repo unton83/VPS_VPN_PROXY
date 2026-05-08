@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  3proxy:
+    image: 3proxy/3proxy:busybox
+    container_name: socks5-proxy
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./3proxy.cfg:/etc/3proxy/3proxy.cfg
+      - ./3proxy.passwd:/etc/3proxy/3proxy.passwd
+    networks:
+      - proxy-network
+
+networks:
+  proxy-network:
+    driver: bridge

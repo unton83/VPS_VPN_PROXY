@@ -1,0 +1,89 @@
+services:
+  web:
+    image: nginx:1.25-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./website:/usr/share/nginx/html:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/certs:/etc/letsencrypt:ro
+    networks:
+      internal:
+        ipv4_address: 172.29.0.10
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: "journald"
+      options:
+        tag: "nginx"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+
+  telemt:
+    image: ghcr.io/telemt/telemt:latest
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - ./telemt/telemt.toml:/etc/telemt/telemt.toml:ro
+      - ./telemt/data:/data
+    command: /etc/telemt/telemt.toml
+    networks:
+      internal:
+        ipv4_address: 172.29.0.11
+    depends_on:
+      web:
+        condition: service_healthy
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/certs:/etc/letsencrypt
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --quiet --webroot -w /var/www/certbot; sleep 43200 & wait $${!}; done"
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: 128M
+        reservations:
+          cpus: "0.15"
+          memory: 64M
+
+networks:
+  internal:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.0.0/24

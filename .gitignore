@@ -1,0 +1,34 @@
+# Include your project-specific ignores in this file
+# Read about how to use .gitignore: https://help.github.com/articles/ignoring-files
+# Useful .gitignore templates: https://github.com/github/gitignore
+
+# Dependencies
+node_modules
+dist
+.cache
+
+# Sensitive data
+*.passwd
+*.key
+*.pem
+*.crt
+certbot/certs/
+telemt/data/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
