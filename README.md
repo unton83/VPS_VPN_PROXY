@@ -13,7 +13,7 @@ One-command deployment of proxy services on low-resource VPS (1CPU, 1GB RAM, 5GB
 ### One-Line Deployment
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/unton83/VPS_VPN_PROXY/master/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/unton83/VPS_VPN_PROXY/master/deploy-online.sh | bash
 ```
 
 ### Manual Deployment
@@ -130,8 +130,7 @@ sudo fail2ban-client banned
 
 ```
 VPS_VPN_PROXY/
-├── install.sh                   # One-line installer
-├── deploy.sh                    # Main deployment script
+├── deploy.sh                    # One-line deployment script
 ├── README.md                    # This file
 ├── README_RU.md                 # Russian documentation
 ├── manage.sh                    # Service management script

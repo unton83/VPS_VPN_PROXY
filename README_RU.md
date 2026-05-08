@@ -13,7 +13,7 @@
 ### Развертывание в Одну Команду
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/unton83/VPS_VPN_PROXY/master/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/unton83/VPS_VPN_PROXY/master/deploy-online.sh | bash
 ```
 
 ### Ручное Развертывание
@@ -129,8 +129,7 @@ sudo fail2ban-client banned
 
 ```
 VPS_VPN_PROXY/
-├── install.sh                   # Однострочный установщик
-├── deploy.sh                    # Основной скрипт развертывания
+├── deploy.sh                    # Однострочное развертывание
 ├── README.md                    # Английская версия документации
 ├── README_RU.md                 # Русская версия документации
 ├── manage.sh                    # Скрипт управления сервисами

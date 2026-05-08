@@ -1,131 +1,133 @@
 #!/bin/bash
 
-# VPS Services Deployment Script
-# Deploys: HTTP Proxy (3proxy), Telegram Proxy (telemt), and prepares for AmneziaWG
-# One-command deployment for 1CPU/1GB RAM/5GB Storage VPS
+# VPS VPN Proxy Deployment Script
+# Deploys HTTP and Telegram proxies with system preparation and Fail2Ban protection
 
-set -euo pipefail
+set -e
 
+# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m'
+NC='\033[0m' # No Color
 
-log()  { echo -e "${BLUE}[info]${NC} $1"; }
-ok()   { echo -e "${GREEN}[ok]${NC} $1"; }
-warn() { echo -e "${YELLOW}[warn]${NC} $1"; }
-err()  { echo -e "${RED}[error]${NC} $1"; exit 1; }
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Logging functions
+log() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
 
-echo ""
-echo "  VPS Services Deployment"
-echo "  ─────────────────────────────────────────────────────────────"
-echo "  Services: HTTP Proxy (3proxy), Telegram Proxy (telemt)"
-echo "  Requirements: 1CPU, 1GB RAM, 5GB Storage, Docker + Docker Compose"
-echo ""
+warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
 
-# ── 1. System Preparation ───────────────────────────────────────────────
-log "Preparing system..."
+err() {
+    echo -e "${RED}[ERROR]${NC} $1"
+    exit 1
+}
 
-# Detect OS
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    OS=$NAME
-    VER=$VERSION_ID
-else
-    err "Cannot detect operating system"
-fi
+ok() {
+    echo -e "${GREEN}[OK]${NC} $1"
+}
 
-log "Detected OS: $OS $VER"
+# ── 1. System Preparation ───────────────────────────────────────
+log "Starting system preparation..."
 
-# Supported OS: Ubuntu 20.04+, Debian 11+
-if [[ "$OS" != *"Ubuntu"* ]] && [[ "$OS" != *"Debian"* ]]; then
-    err "Unsupported OS: $OS. Supported: Ubuntu 20.04+, Debian 11+"
-fi
+# Detect OS and version
+detect_os() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS="$NAME"
+        VER="$VERSION_ID"
+    else
+        err "Cannot detect OS. /etc/os-release not found."
+    fi
+    
+    log "Detected OS: $OS $VER"
+    
+    # Check if OS is supported
+    if [[ "$OS" == *"Ubuntu"* ]]; then
+        if [[ "${VER%%.*}" -lt "20" ]]; then
+            err "Ubuntu $VER is not supported. Please use Ubuntu 20.04 or later."
+        fi
+    elif [[ "$OS" == *"Debian"* ]]; then
+        if [[ "${VER%%.*}" -lt "11" ]]; then
+            err "Debian $VER is not supported. Please use Debian 11 or later."
+        fi
+    else
+        err "Unsupported OS: $OS. Please use Ubuntu 20.04+ or Debian 11+."
+    fi
+    
+    ok "OS compatibility check passed"
+}
 
 # Update system packages
-log "Updating system packages..."
-if command -v apt >/dev/null 2>&1; then
+update_system() {
+    log "Updating system packages..."
     sudo apt update
     sudo apt upgrade -y
-    sudo apt install -y curl wget gnupg lsb-release software-properties-common
-else
-    err "Package manager not found. Only apt-based systems are supported."
-fi
+    ok "System packages updated"
+}
 
 # Install Docker if not present
-if ! command -v docker >/dev/null 2>&1; then
-    log "Installing Docker..."
-    curl -fsSL https://get.docker.com -o get-docker.sh
-    sudo sh get-docker.sh
-    sudo usermod -aG docker $USER
-    rm get-docker.sh
-    ok "Docker installed"
-else
-    log "Docker already installed"
-fi
+install_docker() {
+    if ! command -v docker >/dev/null 2>&1; then
+        log "Installing Docker..."
+        sudo apt install -y docker.io
+        sudo systemctl start docker
+        sudo systemctl enable docker
+        ok "Docker installed and started"
+    else
+        log "Docker already installed"
+    fi
+    
+    # Install Docker Compose if not present
+    if ! command -v docker compose >/dev/null 2>&1; then
+        log "Installing Docker Compose..."
+        sudo apt install -y docker-compose-plugin
+        ok "Docker Compose installed"
+    else
+        log "Docker Compose already available"
+    fi
+}
 
-# Install Docker Compose if not present
-if ! docker compose version >/dev/null 2>&1; then
-    log "Installing Docker Compose..."
-    sudo apt install -y docker-compose-plugin
-    ok "Docker Compose installed"
-else
-    log "Docker Compose already installed"
-fi
-
-# Install openssl if not present
-if ! command -v openssl >/dev/null 2>&1; then
-    log "Installing openssl..."
-    sudo apt install -y openssl
-    ok "openssl installed"
-else
-    log "openssl already installed"
-fi
-
-# Install curl if not present
-if ! command -v curl >/dev/null 2>&1; then
-    log "Installing curl..."
-    sudo apt install -y curl
-    ok "curl installed"
-else
-    log "curl already installed"
-fi
+# Install additional dependencies
+install_dependencies() {
+    log "Installing additional dependencies..."
+    
+    # Install openssl if not present
+    if ! command -v openssl >/dev/null 2>&1; then
+        log "Installing openssl..."
+        sudo apt install -y openssl
+        ok "openssl installed"
+    else
+        log "openssl already installed"
+    fi
+    
+    # Install curl if not present
+    if ! command -v curl >/dev/null 2>&1; then
+        log "Installing curl..."
+        sudo apt install -y curl
+        ok "curl installed"
+    else
+        log "curl already installed"
+    fi
+}
 
 ok "System preparation completed"
 
-# ── 2. Install Fail2Ban ───────────────────────────────────────────────
-log "Installing Fail2Ban..."
-
-# Install fail2ban
-if ! command -v fail2ban-server >/dev/null 2>&1; then
-    log "Installing Fail2Ban..."
-    sudo apt install -y fail2ban
-    ok "Fail2Ban installed"
-else
-    log "Fail2Ban already installed"
-fi
-
-ok "Fail2Ban installation completed"
-
-# ── 3. Service Selection ───────────────────────────────────────────────
-# Check if input is already piped in
-if [ -t 0 ]; then
-    # Input is piped, use it
-    read CHOICE
-else
-    # No piped input, show menu
-    echo ""
-    echo -e "${YELLOW}Select services to deploy:${NC}"
-    echo "1) HTTP Proxy only (3proxy)"
-    echo "2) Telegram Proxy only (telemt)"
-    echo "3) Both HTTP Proxy and Telegram Proxy"
-    echo "4) Exit"
-    echo ""
-    read -p "Enter choice [1-4]: " CHOICE
-fi
+# ── 2. Service Selection ───────────────────────────────────────
+echo ""
+echo -e "${YELLOW}Select services to deploy:${NC}"
+echo "1) HTTP Proxy only (3proxy)"
+echo "2) Telegram Proxy only (telemt)"
+echo "3) Both HTTP Proxy and Telegram Proxy"
+echo "4) Exit"
+echo ""
+read -p "Enter choice [1-4]: " CHOICE
 
 case $CHOICE in
     1) DEPLOY_HTTP=true; DEPLOY_TELEGRAM=false ;;
@@ -135,7 +137,7 @@ case $CHOICE in
     *) err "Invalid choice" ;;
 esac
 
-# ── 4. HTTP Proxy Setup ─────────────────────────────────────────────────
+# ── 3. HTTP Proxy Setup ─────────────────────────────────────────
 if [ "$DEPLOY_HTTP" = true ]; then
     echo ""
     log "Setting up HTTP Proxy (3proxy)..."
@@ -156,7 +158,7 @@ EOF
     ok "HTTP Proxy configured"
 fi
 
-# ── 5. Telegram Proxy Setup ─────────────────────────────────────────────
+# ── 4. Telegram Proxy Setup ─────────────────────────────────────────
 if [ "$DEPLOY_TELEGRAM" = true ]; then
     echo ""
     log "Setting up Telegram Proxy (telemt)..."
@@ -191,7 +193,7 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     ok "Telegram Proxy configured"
 fi
 
-# ── 6. Deploy Services ─────────────────────────────────────────────────
+# ── 5. Deploy Services ─────────────────────────────────────────
 echo ""
 log "Deploying services..."
 
@@ -249,52 +251,11 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     # Start all telegram proxy services
     docker compose up -d
     ok "Telegram Proxy started on port 443"
-fi
-
-# ── 7. Display Results ─────────────────────────────────────────────────
-echo ""
-echo "  ✅ Deployment complete!"
-echo "  ─────────────────────────────────────────────────────────────"
-echo ""
-
-if [ "$DEPLOY_HTTP" = true ]; then
-    echo "  HTTP Proxy (3proxy):"
-    echo "    HTTP:   YOUR_VPS_IP:8080"
-    echo "    Username: user1"
-    echo "    Password: $USER1_PASS"
-    echo "    Other users: user2 ($USER2_PASS), user3 ($USER3_PASS)"
-    echo ""
-fi
-
-if [ "$DEPLOY_TELEGRAM" = true ]; then
-    # Build the ee-prefix FakeTLS proxy link
-    TLS_HEX=$(printf '%s' "$DOMAIN" | od -An -tx1 | tr -d ' \n')
-    FULL_SECRET="ee${SECRET}${TLS_HEX}"
     
-    echo "  Telegram Proxy (telemt):"
-    echo "    Domain: $DOMAIN"
-    echo "    Secret: $SECRET"
-    echo ""
-    echo "    Telegram proxy links:"
-    echo "    tg://proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET"
-    echo "    https://t.me/proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET"
-    echo ""
+    cd "$SCRIPT_DIR"
 fi
 
-echo "  Useful commands:"
-if [ "$DEPLOY_HTTP" = true ]; then
-    echo "    cd $SCRIPT_DIR/http-proxy && docker compose ps"
-    echo "    cd $SCRIPT_DIR/http-proxy && docker compose logs -f 3proxy"
-fi
-if [ "$DEPLOY_TELEGRAM" = true ]; then
-    echo "    cd $SCRIPT_DIR/telegram-proxy && docker compose ps"
-    echo "    cd $SCRIPT_DIR/telegram-proxy && docker compose logs -f telemt"
-fi
-echo ""
-echo "  ─────────────────────────────────────────────────────────────"
-echo ""
-
-# ── 7. Configure Fail2Ban ─────────────────────────────────────────────
+# ── 6. Configure Fail2Ban ─────────────────────────────────────────
 log "Configuring Fail2Ban after service deployment..."
 
 # Configure fail2ban (now that containers are running)
@@ -330,6 +291,49 @@ sudo systemctl status fail2ban --no-pager -l
 
 ok "Fail2Ban configuration completed"
 
+# ── 7. Display Results ─────────────────────────────────────────
 echo ""
-echo "  ─────────────────────────────────────────────────────────────"
+echo "  ✅ Deployment complete!"
+echo "  ─────────────────────────────────────────────────────"
+echo ""
+
+if [ "$DEPLOY_HTTP" = true ]; then
+    echo "  HTTP Proxy (3proxy):"
+    echo "    HTTP:   YOUR_VPS_IP:8080"
+    echo "    Username: user1"
+    echo "    Password: $USER1_PASS"
+    echo "    Other users: user2 ($USER2_PASS), user3 ($USER3_PASS)"
+    echo ""
+fi
+
+if [ "$DEPLOY_TELEGRAM" = true ]; then
+    # Build ee-prefix FakeTLS proxy link
+    TLS_HEX=$(printf '%s' "$DOMAIN" | od -An -tx1 | tr -d ' \n')
+    FULL_SECRET="ee${SECRET}${TLS_HEX}"
+    
+    echo "  Telegram Proxy (telemt):"
+    echo "    Domain: $DOMAIN"
+    echo "    Secret: $SECRET"
+    echo ""
+    echo "    Telegram proxy links:"
+    echo "    tg://proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET"
+    echo "    https://t.me/proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET"
+    echo ""
+fi
+
+echo "  Useful commands:"
+if [ "$DEPLOY_HTTP" = true ]; then
+    echo "    cd $SCRIPT_DIR/http-proxy && docker compose ps"
+    echo "    cd $SCRIPT_DIR/http-proxy && docker compose logs -f 3proxy"
+fi
+if [ "$DEPLOY_TELEGRAM" = true ]; then
+    echo "    cd $SCRIPT_DIR/telegram-proxy && docker compose ps"
+    echo "    cd $SCRIPT_DIR/telegram-proxy && docker compose logs -f telemt"
+fi
+
+echo ""
+echo "  Fail2Ban management:"
+echo "    sudo fail2ban-client status"
+echo "    sudo fail2ban-client status nginx-http-auth"
+echo "    sudo fail2ban-client set sshd unbanip IP_ADDRESS"
 echo ""
