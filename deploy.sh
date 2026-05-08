@@ -151,11 +151,57 @@ install_dependencies() {
     fi
 }
 
+# Validate domain format
+validate_domain() {
+    if [[ ! "$DOMAIN" =~ ^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$ ]]; then
+        err "Invalid domain format: $DOMAIN"
+    fi
+}
+
+# Check if required files exist
+check_required_files() {
+    local missing_files=()
+    
+    if [ "$DEPLOY_HTTP" = true ]; then
+        if [ ! -f "$SCRIPT_DIR/http-proxy/docker-compose.yml" ]; then
+            missing_files+=("http-proxy/docker-compose.yml")
+        fi
+        if [ ! -f "$SCRIPT_DIR/http-proxy/3proxy.cfg" ]; then
+            missing_files+=("http-proxy/3proxy.cfg")
+        fi
+    fi
+    
+    if [ "$DEPLOY_TELEGRAM" = true ]; then
+        if [ ! -f "$SCRIPT_DIR/telegram-proxy/docker-compose.yml" ]; then
+            missing_files+=("telegram-proxy/docker-compose.yml")
+        fi
+        if [ ! -f "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml" ]; then
+            missing_files+=("telegram-proxy/telemt/telemt.toml")
+        fi
+        if [ ! -f "$SCRIPT_DIR/telegram-proxy/nginx/ssl.conf.template" ]; then
+            missing_files+=("telegram-proxy/nginx/ssl.conf.template")
+        fi
+    fi
+    
+    if [ ! -f "$SCRIPT_DIR/fail2ban/jail.local" ]; then
+        missing_files+=("fail2ban/jail.local")
+    fi
+    
+    if [ ! -f "$SCRIPT_DIR/fail2ban/docker-nginx.conf" ]; then
+        missing_files+=("fail2ban/docker-nginx.conf")
+    fi
+    
+    if [ ${#missing_files[@]} -gt 0 ]; then
+        err "Missing required files: ${missing_files[*]}"
+    fi
+}
+
 # Execute system preparation
 detect_os
 update_system
 install_docker
 install_dependencies
+check_required_files
 
 ok "System preparation completed"
 
@@ -213,6 +259,7 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     echo -e "${YELLOW}DNS A record must already point to this server's IP.${NC}"
     read -r DOMAIN
     [[ -z "$DOMAIN" ]] && err "Domain cannot be empty."
+    validate_domain
     
     echo ""
     echo -e "${YELLOW}Enter your email for Let's Encrypt expiry notifications:${NC}"
@@ -246,56 +293,70 @@ log "Deploying services..."
 # Deploy HTTP Proxy
 if [ "$DEPLOY_HTTP" = true ]; then
     log "Starting HTTP Proxy..."
-    cd "$SCRIPT_DIR/http-proxy"
-    docker compose up -d
+    (
+        cd "$SCRIPT_DIR/http-proxy"
+        if ! docker compose up -d; then
+            err "Failed to start HTTP Proxy"
+        fi
+    )
     ok "HTTP Proxy started on port 8080 (HTTP)"
 fi
 
 # Deploy Telegram Proxy
 if [ "$DEPLOY_TELEGRAM" = true ]; then
     log "Starting Telegram Proxy..."
-    cd "$SCRIPT_DIR/telegram-proxy"
-    
-    # Start nginx (HTTP-only) first
-    docker compose up -d web
-    
-    log "Waiting for nginx to be ready..."
-    for i in $(seq 1 20); do
-        if curl -sf http://localhost/health >/dev/null 2>&1 || \
-           wget -qO- http://localhost/health >/dev/null 2>&1; then
-            ok "nginx is ready"
-            break
+    (
+        cd "$SCRIPT_DIR/telegram-proxy"
+        
+        # Start nginx (HTTP-only) first
+        if ! docker compose up -d web; then
+            err "Failed to start nginx web service"
         fi
-        if [ "$i" -eq 20 ]; then
-            if ss -tlnp | grep -q ':80 '; then
-                ok "Port 80 is open — continuing"
-            else
-                docker compose logs web
-                err "nginx does not appear to be running. See logs above."
+        
+        log "Waiting for nginx to be ready..."
+        for i in $(seq 1 20); do
+            if curl -sf "http://$DOMAIN/health" >/dev/null 2>&1 || \
+               wget -qO- "http://$DOMAIN/health" >/dev/null 2>&1; then
+                ok "nginx is ready"
+                break
             fi
+            if [ "$i" -eq 20 ]; then
+                if ss -tlnp | grep -q ':80 '; then
+                    ok "Port 80 is open — continuing"
+                else
+                    docker compose logs web
+                    err "nginx does not appear to be running. See logs above."
+                fi
+            fi
+            sleep 2
+        done
+        
+        # Obtain Let's Encrypt certificate
+        log "Requesting Let's Encrypt certificate for $DOMAIN ..."
+        if ! docker compose run --rm --entrypoint certbot certbot certonly \
+            --webroot \
+            --webroot-path /var/www/certbot \
+            --email "$EMAIL" \
+            --agree-tos \
+            --no-eff-email \
+            --domain "$DOMAIN"; then
+            err "Failed to obtain Let's Encrypt certificate"
         fi
-        sleep 2
-    done
-    
-    # Obtain Let's Encrypt certificate
-    log "Requesting Let's Encrypt certificate for $DOMAIN ..."
-    docker compose run --rm --entrypoint certbot certbot certonly \
-        --webroot \
-        --webroot-path /var/www/certbot \
-        --email "$EMAIL" \
-        --agree-tos \
-        --no-eff-email \
-        --domain "$DOMAIN"
-    
-    # Enable SSL on nginx
-    log "Enabling nginx SSL config (port 8443 for cover site)..."
-    sed "s/{{DOMAIN}}/$DOMAIN/g" "$SCRIPT_DIR/telegram-proxy/nginx/ssl.conf.template" \
-        > "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf"
-    
-    docker compose exec -T web nginx -s reload
-    
-    # Start all telegram proxy services
-    docker compose up -d
+        
+        # Enable SSL on nginx
+        log "Enabling nginx SSL config (port 8443 for cover site)..."
+        sed "s/{{DOMAIN}}/$DOMAIN/g" "$SCRIPT_DIR/telegram-proxy/nginx/ssl.conf.template" \
+            > "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf"
+        
+        if ! docker compose exec -T web nginx -s reload; then
+            err "Failed to reload nginx configuration"
+        fi
+        
+        # Start all telegram proxy services
+        if ! docker compose up -d; then
+            err "Failed to start Telegram Proxy services"
+        fi
+    )
     ok "Telegram Proxy started on port 443"
     
     cd "$SCRIPT_DIR"
