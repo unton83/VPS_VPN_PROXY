@@ -379,21 +379,13 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
 
         # Obtain Let's Encrypt certificate using existing nginx
         log "Requesting Let's Encrypt certificate for $DOMAIN ..."
-        if ! docker run --rm --name certbot-temp \
-            --network "telegram-proxy_internal" \
-            -v "$SCRIPT_DIR/telegram-proxy/certbot/www:/var/www/certbot" \
-            -v "$SCRIPT_DIR/telegram-proxy/certbot/certs:/etc/letsencrypt" \
-            -v "$SCRIPT_DIR/telegram-proxy/certbot/logs:/var/log/letsencrypt" \
-            certbot/certbot:latest certonly \
+        if ! docker compose run --rm --entrypoint certbot certbot certonly \
             --webroot \
             --webroot-path /var/www/certbot \
             --email "$EMAIL" \
             --agree-tos \
             --no-eff-email \
-            --domain "$DOMAIN" \
-            --force-renewal \
-            --preferred-challenges http-01 \
-            --http-01-port 80; then
+            --domain "$DOMAIN"; then
             err "Failed to obtain Let's Encrypt certificate"
         fi
         
