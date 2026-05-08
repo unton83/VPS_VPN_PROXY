@@ -444,11 +444,11 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/www"
     chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/certs"
     chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/logs"
-    chown -R 1000:1000 "$SCRIPT_DIR/telegram-proxy/certbot" 2>/dev/null || true
+#    chown -R 1000:1000 "$SCRIPT_DIR/telegram-proxy/certbot" 2>/dev/null || true
     
     # Set proper permissions for telemt data directory
     chmod -R 755 "$SCRIPT_DIR/telegram-proxy/telemt/data"
-    chown -R 1000:1000 "$SCRIPT_DIR/telegram-proxy/telemt/data" 2>/dev/null || true
+#    chown -R 1000:1000 "$SCRIPT_DIR/telegram-proxy/telemt/data" 2>/dev/null || true
     
     ok "Telegram Proxy configured"
 fi
