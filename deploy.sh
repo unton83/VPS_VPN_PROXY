@@ -170,6 +170,15 @@ install_dependencies() {
     else
         log "curl already installed"
     fi
+    
+    # Install dig (dnsutils) if not present
+    if ! command -v dig >/dev/null 2>&1; then
+        log "Installing dnsutils (dig)..."
+        apt install -y dnsutils
+        ok "dnsutils installed"
+    else
+        log "dig already installed"
+    fi
 }
 
 # Validate domain format
@@ -301,8 +310,15 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     # Prepare directories
     mkdir -p "$SCRIPT_DIR/telegram-proxy/certbot/www"
     mkdir -p "$SCRIPT_DIR/telegram-proxy/certbot/certs"
+    mkdir -p "$SCRIPT_DIR/telegram-proxy/certbot/logs"
     mkdir -p "$SCRIPT_DIR/telegram-proxy/telemt/data/tlsfront"
     rm -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf"
+    
+    # Set proper permissions for certbot directories
+    chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/www"
+    chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/certs"
+    chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/logs"
+    chown -R 1000:1000 "$SCRIPT_DIR/telegram-proxy/certbot" 2>/dev/null || true
     
     ok "Telegram Proxy configured"
 fi
@@ -336,8 +352,8 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
         
         log "Waiting for nginx to be ready..."
         for i in $(seq 1 20); do
-            if curl -sf "http://$DOMAIN/health" >/dev/null 2>&1 || \
-               wget -qO- "http://$DOMAIN/health" >/dev/null 2>&1; then
+            if curl -sf "http://localhost/health" >/dev/null 2>&1 || \
+               wget -qO- "http://localhost/health" >/dev/null 2>&1; then
                 ok "nginx is ready"
                 break
             fi
@@ -352,15 +368,32 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
             sleep 2
         done
         
-        # Obtain Let's Encrypt certificate
+        # Check DNS resolution first
+        log "Checking DNS resolution for $DOMAIN ..."
+        DOMAIN_IP=$(dig +short "$DOMAIN" | head -n1)
+        SERVER_IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || curl -s icanhazip.com)
+        if [ "$DOMAIN_IP" != "$SERVER_IP" ]; then
+            err "DNS A record for $DOMAIN ($DOMAIN_IP) does not match server IP ($SERVER_IP)"
+        fi
+        ok "DNS resolution verified: $DOMAIN -> $SERVER_IP"
+
+        # Obtain Let's Encrypt certificate using existing nginx
         log "Requesting Let's Encrypt certificate for $DOMAIN ..."
-        if ! docker compose run --rm --entrypoint certbot certbot certonly \
+        if ! docker run --rm --name certbot-temp \
+            --network "telegram-proxy_internal" \
+            -v "$SCRIPT_DIR/telegram-proxy/certbot/www:/var/www/certbot" \
+            -v "$SCRIPT_DIR/telegram-proxy/certbot/certs:/etc/letsencrypt" \
+            -v "$SCRIPT_DIR/telegram-proxy/certbot/logs:/var/log/letsencrypt" \
+            certbot/certbot:latest certonly \
             --webroot \
             --webroot-path /var/www/certbot \
             --email "$EMAIL" \
             --agree-tos \
             --no-eff-email \
-            --domain "$DOMAIN"; then
+            --domain "$DOMAIN" \
+            --force-renewal \
+            --preferred-challenges http-01 \
+            --http-01-port 80; then
             err "Failed to obtain Let's Encrypt certificate"
         fi
         
