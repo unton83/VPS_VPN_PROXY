@@ -96,8 +96,8 @@ fi
 
 ok "System preparation completed"
 
-# ── 2. Install and Configure Fail2Ban ───────────────────────────────────
-log "Installing and configuring Fail2Ban..."
+# ── 2. Install Fail2Ban ───────────────────────────────────────────────
+log "Installing Fail2Ban..."
 
 # Install fail2ban
 if ! command -v fail2ban-server >/dev/null 2>&1; then
@@ -108,38 +108,7 @@ else
     log "Fail2Ban already installed"
 fi
 
-# Configure fail2ban (assuming modern OS with systemd)
-log "Configuring Fail2Ban with systemd backend..."
-
-# Create fail2ban configuration directory
-sudo mkdir -p /etc/fail2ban
-
-# Copy configuration files
-sudo cp "$SCRIPT_DIR/fail2ban/jail.local" /etc/fail2ban/jail.local
-sudo mkdir -p /etc/fail2ban/filter.d
-sudo cp "$SCRIPT_DIR/fail2ban/docker-nginx.conf" /etc/fail2ban/filter.d/
-
-# Set proper permissions
-sudo chmod 644 /etc/fail2ban/jail.local
-sudo chmod 644 /etc/fail2ban/filter.d/docker-nginx.conf
-
-# Restart and enable fail2ban service
-sudo systemctl restart fail2ban
-sudo systemctl enable fail2ban
-
-# Check fail2ban status
-if sudo systemctl is-active --quiet fail2ban; then
-    ok "Fail2Ban is running and configured"
-else
-    warn "Fail2Ban service is not running - manual check may be needed"
-fi
-
-# Show fail2ban status
-log "Fail2Ban jails status:"
-sudo fail2ban-client status 2>/dev/null || log "Fail2Ban client not available, using systemctl status instead"
-sudo systemctl status fail2ban --no-pager -l
-
-ok "Fail2Ban configuration completed"
+ok "Fail2Ban installation completed"
 
 # ── 3. Service Selection ───────────────────────────────────────────────
 echo ""
@@ -314,6 +283,46 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     echo "    cd $SCRIPT_DIR/telegram-proxy && docker compose ps"
     echo "    cd $SCRIPT_DIR/telegram-proxy && docker compose logs -f telemt"
 fi
+echo ""
+echo "  ─────────────────────────────────────────────────────────────"
+echo ""
+
+# ── 7. Configure Fail2Ban ─────────────────────────────────────────────
+log "Configuring Fail2Ban after service deployment..."
+
+# Configure fail2ban (now that containers are running)
+log "Setting up Fail2Ban with systemd backend..."
+
+# Create fail2ban configuration directory
+sudo mkdir -p /etc/fail2ban
+
+# Copy configuration files
+sudo cp "$SCRIPT_DIR/fail2ban/jail.local" /etc/fail2ban/jail.local
+sudo mkdir -p /etc/fail2ban/filter.d
+sudo cp "$SCRIPT_DIR/fail2ban/docker-nginx.conf" /etc/fail2ban/filter.d/
+
+# Set proper permissions
+sudo chmod 644 /etc/fail2ban/jail.local
+sudo chmod 644 /etc/fail2ban/filter.d/docker-nginx.conf
+
+# Restart and enable fail2ban service
+sudo systemctl restart fail2ban
+sudo systemctl enable fail2ban
+
+# Check fail2ban status
+if sudo systemctl is-active --quiet fail2ban; then
+    ok "Fail2Ban is running and configured"
+else
+    warn "Fail2Ban service is not running - manual check may be needed"
+fi
+
+# Show fail2ban status
+log "Fail2Ban jails status:"
+sudo fail2ban-client status 2>/dev/null || log "Fail2Ban client not available, using systemctl status instead"
+sudo systemctl status fail2ban --no-pager -l
+
+ok "Fail2Ban configuration completed"
+
 echo ""
 echo "  ─────────────────────────────────────────────────────────────"
 echo ""
