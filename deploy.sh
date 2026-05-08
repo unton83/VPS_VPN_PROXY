@@ -436,7 +436,7 @@ chmod 644 /etc/fail2ban/jail.local
 chmod 644 /etc/fail2ban/filter.d/docker-nginx.conf
 
 # Restart and enable fail2ban service
-systemctl restart fail2ban
+systemctl start fail2ban
 systemctl enable fail2ban
 
 # Check fail2ban status

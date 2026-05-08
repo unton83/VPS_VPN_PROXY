@@ -11,27 +11,26 @@ journalmatch = _SYSTEMD_UNIT=sshd.service
 maxretry = 3
 bantime = 3600
 
-[nginx-docker]
+[docker-nginx]
 enabled = true
 port = http,https
-filter = docker-nginx
 action = iptables-allports[name=nginx, chain=DOCKER-USER]
 journalmatch = _SYSTEMD_UNIT=docker.service CONTAINER_TAG="nginx"
 maxretry = 3
 bantime = 3600
 
-#[nginx-limit-req]
-#enabled = true
-#port = http,https
-#filter = docker-nginx
-#logpath = %(systemd_journal)s
-#maxretry = 3
-#bantime = 3600
+[nginx-limit-req]
+enabled = true
+port = http,https
+action = iptables-allports[name=nginx, chain=DOCKER-USER]
+journalmatch = _SYSTEMD_UNIT=docker.service CONTAINER_TAG="nginx"
+maxretry = 3
+bantime = 3600
 
-#[nginx-botsearch]
-#enabled = true
-#port = http,https
-#filter = docker-nginx
-#logpath = %(systemd_journal)s
-#maxretry = 3
-#bantime = 3600
+[nginx-botsearch]
+enabled = true
+port = http,https
+action = iptables-allports[name=nginx, chain=DOCKER-USER]
+journalmatch = _SYSTEMD_UNIT=docker.service CONTAINER_TAG="nginx"
+maxretry = 3
+bantime = 3600
