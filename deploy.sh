@@ -235,12 +235,129 @@ check_required_files() {
     fi
 }
 
+# Check for existing configuration and offer clean install option
+check_existing_config() {
+    local existing_files=()
+    
+    # Check for existing generated/configured files
+    if [ -f "$SCRIPT_DIR/http-proxy/3proxy.passwd" ]; then
+        existing_files+=("HTTP Proxy passwords")
+    fi
+    
+    if [ -f "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml" ] && \
+       grep -q "REPLACE_WITH_YOUR_DOMAIN\|REPLACE_WITH_YOUR_SECRET" "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml"; then
+        existing_files+=("Unconfigured Telegram proxy")
+    elif [ -f "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml" ] && \
+       ! grep -q "REPLACE_WITH_YOUR_DOMAIN\|REPLACE_WITH_YOUR_SECRET" "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml"; then
+        existing_files+=("Configured Telegram proxy")
+    fi
+    
+    if [ -d "$SCRIPT_DIR/telegram-proxy/certbot/certs/live" ] && \
+       [ "$(ls -A "$SCRIPT_DIR/telegram-proxy/certbot/certs/live" 2>/dev/null)" ]; then
+        existing_files+=("SSL certificates")
+    fi
+    
+    if [ -d "$SCRIPT_DIR/telegram-proxy/telemt/data" ] && \
+       [ "$(ls -A "$SCRIPT_DIR/telegram-proxy/telemt/data" 2>/dev/null)" ]; then
+        existing_files+=("Telegram proxy data")
+    fi
+    
+    # If existing files found, offer clean install option
+    if [ ${#existing_files[@]} -gt 0 ]; then
+        echo ""
+        warn "Existing configuration found:"
+        for file in "${existing_files[@]}"; do
+            echo "  - $file"
+        done
+        echo ""
+        echo -e "${YELLOW}Choose installation mode:${NC}"
+        echo "1) Continue with existing configuration"
+        echo "2) Clean install (remove existing config and start fresh)"
+        echo "3) Exit"
+        echo ""
+        
+        # Only read input if no piped input is available
+        if [ -t 0 ]; then
+            read -p "Enter choice [1-3]: " CLEAN_CHOICE
+        else
+            # Input is piped, use continue
+            CLEAN_CHOICE="1"
+        fi
+        
+        case $CLEAN_CHOICE in
+            1) 
+                log "Continuing with existing configuration..."
+                ;;
+            2) 
+                log "Performing clean install..."
+                clean_existing_config
+                ;;
+            3) 
+                echo "Exiting..."
+                exit 0
+                ;;
+            *) 
+                err "Invalid choice"
+                ;;
+        esac
+    else
+        log "No existing configuration found - performing fresh install"
+    fi
+}
+
+# Clean existing configuration files
+clean_existing_config() {
+    log "Removing existing configuration files..."
+    
+    # Remove HTTP proxy passwords
+    if [ -f "$SCRIPT_DIR/http-proxy/3proxy.passwd" ]; then
+        rm -f "$SCRIPT_DIR/http-proxy/3proxy.passwd"
+        log "Removed HTTP proxy passwords"
+    fi
+    
+    # Reset Telegram proxy configuration
+    if [ -f "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml" ]; then
+        # Reset to template values
+        sed -i "s|tls_domain = \".*\"|tls_domain = \"REPLACE_WITH_YOUR_DOMAIN\"|g" "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml"
+        sed -i "s|proxy = \".*\"|proxy = \"REPLACE_WITH_YOUR_SECRET\"|g" "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml"
+        log "Reset Telegram proxy configuration"
+    fi
+    
+    # Remove SSL certificates
+    if [ -d "$SCRIPT_DIR/telegram-proxy/certbot/certs" ]; then
+        rm -rf "$SCRIPT_DIR/telegram-proxy/certbot/certs"/*
+        log "Removed SSL certificates"
+    fi
+    
+    # Remove Telegram proxy data
+    if [ -d "$SCRIPT_DIR/telegram-proxy/telemt/data" ]; then
+        rm -rf "$SCRIPT_DIR/telegram-proxy/telemt/data"/*
+        log "Removed Telegram proxy data"
+    fi
+    
+    # Remove nginx SSL config
+    if [ -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf" ]; then
+        rm -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf"
+        log "Removed nginx SSL configuration"
+    fi
+    
+    # Stop and remove containers if running
+    if command -v docker >/dev/null 2>&1; then
+        cd "$SCRIPT_DIR/http-proxy" 2>/dev/null && docker compose down -v 2>/dev/null || true
+        cd "$SCRIPT_DIR/telegram-proxy" 2>/dev/null && docker compose down -v 2>/dev/null || true
+        log "Stopped and removed existing containers"
+    fi
+    
+    ok "Clean install completed"
+}
+
 # Execute system preparation
 detect_os
 update_system
 install_docker
 install_dependencies
 check_required_files
+check_existing_config
 
 ok "System preparation completed"
 
@@ -328,6 +445,10 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/certs"
     chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/logs"
     chown -R 1000:1000 "$SCRIPT_DIR/telegram-proxy/certbot" 2>/dev/null || true
+    
+    # Set proper permissions for telemt data directory
+    chmod -R 755 "$SCRIPT_DIR/telegram-proxy/telemt/data"
+    chown -R 1000:1000 "$SCRIPT_DIR/telegram-proxy/telemt/data" 2>/dev/null || true
     
     ok "Telegram Proxy configured"
 fi
