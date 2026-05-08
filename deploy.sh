@@ -151,6 +151,12 @@ install_dependencies() {
     fi
 }
 
+# Execute system preparation
+detect_os
+update_system
+install_docker
+install_dependencies
+
 ok "System preparation completed"
 
 # ── 2. Service Selection ───────────────────────────────
