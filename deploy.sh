@@ -179,6 +179,15 @@ install_dependencies() {
     else
         log "dig already installed"
     fi
+    
+    # Install fail2ban if not present
+    if ! command -v fail2ban-server >/dev/null 2>&1; then
+        log "Installing fail2ban..."
+        apt install -y fail2ban
+        ok "fail2ban installed"
+    else
+        log "fail2ban already installed"
+    fi
 }
 
 # Validate domain format
