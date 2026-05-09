@@ -677,5 +677,5 @@ To read this information later: cat $INFO_FILE
 EOF
 
 echo "  📄 Deployment info saved to: $INFO_FILE"
-echo "  📖 To read later: cat $INFO_FILE"
+echo -e "  📖 To read later: ${GREEN}cat $INFO_FILE${NC}"
 echo ""
