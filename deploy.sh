@@ -568,6 +568,17 @@ echo "  ✅ Deployment complete!"
 echo "  ─────────────────────────────────────────────"
 echo ""
 
+# Create deployment info file
+INFO_FILE="$SCRIPT_DIR/deployment_info.txt"
+cat > "$INFO_FILE" << EOF
+========================================
+VPS VPN Proxy Deployment Information
+========================================
+Deployment Date: $(date)
+========================================
+
+EOF
+
 if [ "$DEPLOY_HTTP" = true ]; then
     echo "  HTTP Proxy (3proxy):"
     echo "    HTTP:   YOUR_VPS_IP:8080"
@@ -575,6 +586,18 @@ if [ "$DEPLOY_HTTP" = true ]; then
     echo "    Password: $USER1_PASS"
     echo "    Other users: user2 ($USER2_PASS), user3 ($USER3_PASS)"
     echo ""
+    
+    # Add to info file
+    cat >> "$INFO_FILE" << EOF
+HTTP Proxy (3proxy):
+- HTTP: YOUR_VPS_IP:8080
+- Username: user1
+- Password: $USER1_PASS
+- Other users: 
+  * user2: $USER2_PASS
+  * user3: $USER3_PASS
+
+EOF
 fi
 
 if [ "$DEPLOY_TELEGRAM" = true ]; then
@@ -590,6 +613,17 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     echo "    tg://proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET"
     echo "    https://t.me/proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET"
     echo ""
+    
+    # Add to info file
+    cat >> "$INFO_FILE" << EOF
+Telegram Proxy (telemt):
+- Domain: $DOMAIN
+- Secret: $SECRET
+- Proxy links:
+  * tg://proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET
+  * https://t.me/proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET
+
+EOF
 fi
 
 echo "  Useful commands:"
@@ -607,4 +641,41 @@ echo "  Fail2Ban management:"
 echo "    fail2ban-client status"
 echo "    fail2ban-client status nginx-http-auth"
 echo "    fail2ban-client set sshd unbanip IP_ADDRESS"
+echo ""
+
+# Add commands to info file
+cat >> "$INFO_FILE" << EOF
+Useful Commands:
+EOF
+
+if [ "$DEPLOY_HTTP" = true ]; then
+    cat >> "$INFO_FILE" << EOF
+- HTTP Proxy:
+  * cd $SCRIPT_DIR/http-proxy && docker compose ps
+  * cd $SCRIPT_DIR/http-proxy && docker compose logs -f 3proxy
+EOF
+fi
+
+if [ "$DEPLOY_TELEGRAM" = true ]; then
+    cat >> "$INFO_FILE" << EOF
+- Telegram Proxy:
+  * cd $SCRIPT_DIR/telegram-proxy && docker compose ps
+  * cd $SCRIPT_DIR/telegram-proxy && docker compose logs -f telemt
+EOF
+fi
+
+cat >> "$INFO_FILE" << EOF
+
+Fail2Ban Management:
+- fail2ban-client status
+- fail2ban-client status nginx-http-auth
+- fail2ban-client set sshd unbanip IP_ADDRESS
+
+========================================
+To read this information later: cat $INFO_FILE
+========================================
+EOF
+
+echo "  📄 Deployment info saved to: $INFO_FILE"
+echo "  📖 To read later: cat $INFO_FILE"
 echo ""
