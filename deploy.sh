@@ -501,7 +501,7 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
         # Check DNS resolution first
         log "Checking DNS resolution for $DOMAIN ..."
         DOMAIN_IP=$(dig +short "$DOMAIN" | head -n1)
-        SERVER_IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || curl -s icanhazip.com)
+        SERVER_IP=$(curl -4s ifconfig.me || curl -4s ipinfo.io/ip || curl -4s icanhazip.com)
         if [ "$DOMAIN_IP" != "$SERVER_IP" ]; then
             err "DNS A record for $DOMAIN ($DOMAIN_IP) does not match server IP ($SERVER_IP)"
         fi

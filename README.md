@@ -10,6 +10,12 @@ One-command deployment of proxy services on low-resource VPS (1CPU, 1GB RAM, 5GB
 
 ## Quick Start
 
+### Check Telegram accessibility from VPS first
+
+```bash
+time curl -v https://api.telegram.org
+````
+
 ### One-Line Deployment
 
 ```bash
