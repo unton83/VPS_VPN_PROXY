@@ -257,10 +257,7 @@ check_existing_config() {
         existing_files+=("SSL certificates")
     fi
     
-    if [ -d "$SCRIPT_DIR/telegram-proxy/telemt/data" ] && \
-       [ "$(ls -A "$SCRIPT_DIR/telegram-proxy/telemt/data" 2>/dev/null)" ]; then
-        existing_files+=("Telegram proxy data")
-    fi
+    # Note: telemt uses tmpfs, no persistent data to check
     
     # If existing files found, offer clean install option
     if [ ${#existing_files[@]} -gt 0 ]; then
@@ -329,11 +326,8 @@ clean_existing_config() {
         log "Removed SSL certificates"
     fi
     
-    # Remove Telegram proxy data
-    if [ -d "$SCRIPT_DIR/telegram-proxy/telemt/data" ]; then
-        rm -rf "$SCRIPT_DIR/telegram-proxy/telemt/data"/*
-        log "Removed Telegram proxy data"
-    fi
+    # Note: telemt uses tmpfs, no persistent data to remove
+    log "Telemt uses tmpfs - no persistent data to remove"
     
     # Remove nginx SSL config
     if [ -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf" ]; then
@@ -437,18 +431,12 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     mkdir -p "$SCRIPT_DIR/telegram-proxy/certbot/www"
     mkdir -p "$SCRIPT_DIR/telegram-proxy/certbot/certs"
     mkdir -p "$SCRIPT_DIR/telegram-proxy/certbot/logs"
-    mkdir -p "$SCRIPT_DIR/telegram-proxy/telemt/data/tlsfront"
     rm -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf"
     
     # Set proper permissions for certbot directories
     chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/www"
     chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/certs"
     chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/logs"
-#    chown -R 1000:1000 "$SCRIPT_DIR/telegram-proxy/certbot" 2>/dev/null || true
-    
-    # Set proper permissions for telemt data directory
-    chmod -R 755 "$SCRIPT_DIR/telegram-proxy/telemt/data"
-#    chown -R 1000:1000 "$SCRIPT_DIR/telegram-proxy/telemt/data" 2>/dev/null || true
     
     ok "Telegram Proxy configured"
 fi
