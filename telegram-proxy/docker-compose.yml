@@ -40,7 +40,7 @@ services:
       - "127.0.0.1:9091:9091"
     working_dir: /etc/telemt
     volumes:
-      - ./telemt/telemt.toml:/etc/telemt/telemt.toml:ro
+      - ./telemt/telemt.toml:/etc/telemt/config.toml:ro
     tmpfs:
       - /etc/telemt:rw,mode=1777,size=4m
     environment:
