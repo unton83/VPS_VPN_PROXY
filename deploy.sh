@@ -67,7 +67,30 @@ else
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
 
-# ── 1. System Preparation ───────────────────────────────
+# ── 1. Port Availability Check ───────────────────────────────
+log "Checking port availability..."
+
+# Check if required ports are free
+check_ports() {
+    local ports=(80 443 8080)
+    local conflicts=()
+    
+    for port in "${ports[@]}"; do
+        if netstat -tuln | grep -q ":$port "; then
+            conflicts+=("$port")
+        fi
+    done
+    
+    if [ ${#conflicts[@]} -gt 0 ]; then
+        err "Ports ${conflicts[*]} are already in use. Please free these ports and try again."
+    fi
+    
+    ok "Required ports (80, 443, 8080) are available"
+}
+
+check_ports
+
+# ── 2. System Preparation ───────────────────────────────
 log "Starting system preparation..."
 
 # Detect OS and version
@@ -355,7 +378,7 @@ check_existing_config
 
 ok "System preparation completed"
 
-# ── 2. Service Selection ───────────────────────────────
+# ── 3. Service Selection ───────────────────────────────
 echo ""
 echo -e "${YELLOW}Select services to be deployed:${NC}"
 echo "1) HTTP Proxy only (3proxy)"
@@ -379,7 +402,7 @@ case $CHOICE in
     *) err "Invalid choice" ;;
 esac
 
-# ── 3. HTTP Proxy Setup ─────────────────────────────────
+# ── 4. HTTP Proxy Setup ─────────────────────────────────
 if [ "$DEPLOY_HTTP" = true ]; then
     echo ""
     log "Setting up HTTP Proxy (3proxy)..."
@@ -400,7 +423,7 @@ EOF
     ok "HTTP Proxy configured"
 fi
 
-# ── 4. Telegram Proxy Setup ─────────────────────────────────
+# ── 5. Telegram Proxy Setup ─────────────────────────────────
 if [ "$DEPLOY_TELEGRAM" = true ]; then
     echo ""
     log "Setting up Telegram Proxy (telemt)..."
@@ -441,7 +464,7 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     ok "Telegram Proxy configured"
 fi
 
-# ── 5. Deploy Services ─────────────────────────────────
+# ── 6. Deploy Services ─────────────────────────────────
 echo ""
 log "Deploying services..."
 
@@ -526,7 +549,7 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     cd "$SCRIPT_DIR"
 fi
 
-# ── 6. Configure Fail2Ban ─────────────────────────────────
+# ── 7. Configure Fail2Ban ─────────────────────────────────
 log "Configuring Fail2Ban after service deployment..."
 
 # Configure fail2ban (now that containers are running)
@@ -562,7 +585,7 @@ systemctl status fail2ban --no-pager -l
 
 ok "Fail2Ban configuration completed"
 
-# ── 7. Display Results ─────────────────────────────────
+# ── 8. Display Results ─────────────────────────────────
 echo ""
 echo "  ✅ Deployment complete!"
 echo "  ─────────────────────────────────────────────"
