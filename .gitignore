@@ -21,6 +21,7 @@ telemt/data/
 *.swp
 *.swo
 .gigacode/
+.gigaide/
 
 # OS files
 .DS_Store

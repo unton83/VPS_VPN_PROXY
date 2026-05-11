@@ -132,6 +132,18 @@ sudo fail2ban-client set sshd unbanip IP_ADDRESS
 sudo fail2ban-client banned
 ```
 
+## Error Handling Improvements
+
+The deployment script now includes enhanced error handling and rollback mechanisms:
+
+- **Command execution with error checking**: All critical commands are executed via `run_cmd` which logs each step and validates exit codes.
+- **Automatic rollback on failure**: If Docker installation fails, the script attempts to clean up partially installed packages.
+- **Service deployment rollback**: If HTTP Proxy or Telegram Proxy deployment fails, the script attempts to stop and remove any created containers.
+- **Strict mode**: The script uses `set -euo pipefail` to catch unset variables, pipeline errors, and command failures early.
+- **Detailed logging**: Each step is logged with timestamps and status indicators for easier debugging.
+
+These improvements make the deployment process more robust and easier to troubleshoot.
+
 ## File Structure
 
 ```

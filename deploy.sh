@@ -3,7 +3,7 @@
 # VPS VPN Proxy Deployment Script
 # Deploys HTTP and Telegram proxies with system preparation and Fail2Ban protection
 
-set -e
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -12,7 +12,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Logging functions
+# Enhanced logging functions
 log() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
@@ -28,6 +28,51 @@ err() {
 
 ok() {
     echo -e "${GREEN}[OK]${NC} $1"
+}
+
+# Run command with error checking and logging
+run_cmd() {
+    local cmd="$*"
+    log "Executing: $cmd"
+    if eval "$cmd"; then
+        log "Command succeeded: $cmd"
+        return 0
+    else
+        local exit_code=$?
+        err "Command failed with exit code $exit_code: $cmd"
+        return $exit_code
+    fi
+}
+
+# Rollback functions
+rollback_docker_install() {
+    warn "Rolling back Docker installation..."
+    apt-get remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || true
+    apt-get autoremove -y || true
+    rm -rf /var/lib/docker || true
+    rm -rf /etc/docker || true
+    log "Docker installation rolled back."
+}
+
+rollback_http_proxy() {
+    warn "Rolling back HTTP Proxy..."
+    cd "$SCRIPT_DIR/http-proxy" 2>/dev/null && docker compose down -v 2>/dev/null || true
+    rm -f "$SCRIPT_DIR/http-proxy/3proxy.passwd" 2>/dev/null || true
+    log "HTTP Proxy rolled back."
+}
+
+rollback_telegram_proxy() {
+    warn "Rolling back Telegram Proxy..."
+    cd "$SCRIPT_DIR/telegram-proxy" 2>/dev/null && docker compose down -v 2>/dev/null || true
+    rm -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf" 2>/dev/null || true
+    log "Telegram Proxy rolled back."
+}
+
+# Global deployment stage tracking
+DEPLOYMENT_STAGE="initial"
+set_stage() {
+    DEPLOYMENT_STAGE="$1"
+    log "Entering deployment stage: $1"
 }
 
 # Check if running from curl or local
@@ -139,8 +184,8 @@ detect_os() {
 # Update system packages
 update_system() {
     log "Updating system packages..."
-    apt update
-    apt upgrade -y
+    run_cmd apt update
+    run_cmd apt upgrade -y
     ok "System packages updated"
 }
 
@@ -148,13 +193,14 @@ update_system() {
 install_docker() {
     if ! command -v docker >/dev/null 2>&1; then
         log "Installing Docker..."
+        set_stage "docker_install"
         
         # Add Docker's official GPG key
-        apt update
-        apt install -y ca-certificates curl
-        install -m 0755 -d /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-        chmod a+r /etc/apt/keyrings/docker.asc
+        run_cmd apt update
+        run_cmd apt install -y ca-certificates curl
+        run_cmd install -m 0755 -d /etc/apt/keyrings
+        run_cmd curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+        run_cmd chmod a+r /etc/apt/keyrings/docker.asc
         
         # Add repository to Apt sources
         tee /etc/apt/sources.list.d/docker.sources > /dev/null <<EOF
@@ -167,11 +213,14 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
         
         # Install Docker packages
-        apt update
-        apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        run_cmd apt update
+        if ! run_cmd apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+            rollback_docker_install
+            err "Failed to install Docker packages. Rollback completed."
+        fi
         
-        systemctl start docker
-        systemctl enable docker
+        run_cmd systemctl start docker
+        run_cmd systemctl enable docker
         ok "Docker installed and started"
     else
         log "Docker already installed"
@@ -180,8 +229,11 @@ EOF
     # Check Docker Compose availability
     if ! command -v docker compose >/dev/null 2>&1; then
         log "Docker Compose not available, installing..."
-        apt install -y docker-compose-plugin
-        ok "Docker Compose installed"
+        if ! run_cmd apt install -y docker-compose-plugin; then
+            warn "Failed to install Docker Compose plugin, but Docker is already installed. Continuing."
+        else
+            ok "Docker Compose installed"
+        fi
     else
         log "Docker Compose already available"
     fi
@@ -194,7 +246,7 @@ install_dependencies() {
     # Install openssl if not present
     if ! command -v openssl >/dev/null 2>&1; then
         log "Installing openssl..."
-        apt install -y openssl
+        run_cmd apt install -y openssl
         ok "openssl installed"
     else
         log "openssl already installed"
@@ -203,7 +255,7 @@ install_dependencies() {
     # Install curl if not present
     if ! command -v curl >/dev/null 2>&1; then
         log "Installing curl..."
-        apt install -y curl
+        run_cmd apt install -y curl
         ok "curl installed"
     else
         log "curl already installed"
@@ -212,7 +264,7 @@ install_dependencies() {
     # Install dig (dnsutils) if not present
     if ! command -v dig >/dev/null 2>&1; then
         log "Installing dnsutils (dig)..."
-        apt install -y dnsutils
+        run_cmd apt install -y dnsutils
         ok "dnsutils installed"
     else
         log "dig already installed"
@@ -221,7 +273,7 @@ install_dependencies() {
     # Install fail2ban if not present
     if ! command -v fail2ban-server >/dev/null 2>&1; then
         log "Installing fail2ban..."
-        apt install -y fail2ban
+        run_cmd apt install -y fail2ban
         ok "fail2ban installed"
     else
         log "fail2ban already installed"
