@@ -20,6 +20,7 @@ telemt/data/
 .vscode/
 *.swp
 *.swo
+.gigacode/
 
 # OS files
 .DS_Store

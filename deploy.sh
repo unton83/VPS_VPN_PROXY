@@ -90,6 +90,25 @@ check_ports() {
 
 check_ports
 
+# Check if Telegram is accessible via curl
+check_telegram_access() {
+    log "Testing connection to web.telegram.org..."
+    
+    # Try to connect to web.telegram.org with a short timeout
+    if curl -fsSL --max-time 10 https://web.telegram.org >/dev/null 2>&1; then
+        ok "Successfully connected to Telegram"
+    else
+        # If first attempt fails, try with different UA
+        if curl -fsSL --max-time 10 -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" https://web.telegram.org >/dev/null 2>&1; then
+            ok "Successfully connected to Telegram with alternative User-Agent"
+        else
+            err "Cannot connect to Telegram. Please check your network connection and firewall settings."
+        fi
+    fi
+}
+
+check_telegram_access
+
 # ── 2. System Preparation ───────────────────────────────
 log "Starting system preparation..."
 
@@ -292,13 +311,12 @@ check_existing_config() {
         echo "3) Exit"
         echo ""
         
-        # Only read input if no piped input is available
-        if [ -t 0 ]; then
-            read -p "Enter choice [1-3]: " CLEAN_CHOICE
-        else
-            # Input is piped, use continue
-            CLEAN_CHOICE="1"
+        # Remove piped input option - it's not supported
+        if [ ! -t 0 ]; then
+            err "Piped input is not supported. Please run the script interactively."
         fi
+        
+        read -p "Enter choice [1-3]: " CLEAN_CHOICE
         
         case $CLEAN_CHOICE in
             1) 
@@ -380,13 +398,12 @@ echo "2) Telegram Proxy only (telemt)"
 echo "3) Both HTTP Proxy and Telegram Proxy"
 echo "4) Exit"
 echo ""
-# Only read input if no piped input is available
-if [ -t 0 ]; then
-    read -p "Enter choice [1-4]: " CHOICE
-else
-    # Input is piped, use it
-    CHOICE="3"
+# Remove piped input option - it's not supported
+if [ ! -t 0 ]; then
+    err "Piped input is not supported. Please run the script interactively."
 fi
+
+read -p "Enter choice [1-4]: " CHOICE
 
 case $CHOICE in
     1) DEPLOY_HTTP=true; DEPLOY_TELEGRAM=false ;;
@@ -529,7 +546,7 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
         
         # Enable SSL on nginx
         log "Enabling nginx SSL config (port 8443 for cover site)..."
-        sed "s/{{DOMAIN}}/$DOMAIN/g" "$SCRIPT_DIR/telegram-proxy/nginx/ssl.conf.template" \
+        sed "s|{{DOMAIN}}|$DOMAIN|g" "$SCRIPT_DIR/telegram-proxy/nginx/ssl.conf.template" \
             > "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf"
         
         if ! docker compose exec -T web nginx -s reload; then
@@ -602,9 +619,9 @@ EOF
 if [ "$DEPLOY_HTTP" = true ]; then
     echo "  HTTP Proxy (3proxy):"
     echo "    HTTP:   YOUR_VPS_IP:8080"
-    echo "    Username: user1"
-    echo "    Password: $USER1_PASS"
-    echo "    Other users: user2 ($USER2_PASS), user3 ($USER3_PASS)"
+    echo "    Username: ${GREEN}user1${NC}"
+    echo "    Password: ${GREEN}$USER1_PASS${NC}"
+    echo "    Other users: user2 (${GREEN}$USER2_PASS${NC}), user3 (${GREEN}$USER3_PASS${NC})"
     echo ""
     
     # Add to info file
@@ -626,12 +643,12 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     FULL_SECRET="ee${SECRET}${TLS_HEX}"
     
     echo "  Telegram Proxy (telemt):"
-    echo "    Domain: $DOMAIN"
-    echo "    Secret: $SECRET"
+    echo "    Domain: ${GREEN}$DOMAIN${NC}"
+    echo "    Secret: ${GREEN}$SECRET${NC}"
     echo ""
     echo "    Telegram proxy links:"
-    echo "    tg://proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET"
-    echo "    https://t.me/proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET"
+    echo "    ${GREEN}tg://proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET${NC}"
+    echo "    ${GREEN}https://t.me/proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET${NC}"
     echo ""
     
     # Add to info file
@@ -696,6 +713,6 @@ To read this information later: cat $INFO_FILE
 ========================================
 EOF
 
-echo "  📄 Deployment info saved to: $INFO_FILE"
+echo "  📄 Deployment info saved to: ${GREEN}$INFO_FILE${NC}"
 echo -e "  📖 To read later: ${GREEN}cat $INFO_FILE${NC}"
 echo ""
