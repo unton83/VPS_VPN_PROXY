@@ -38,7 +38,7 @@ chmod +x deploy.sh
 
 ## Требования
 
-- VPS с Ubuntu 20.04+ / Debian 11+
+- VPS с Debian 11+
 - Docker + Docker Compose v2
 - Для Telegram прокси: домен с A-записью, указывающей на IP VPS
 - Открытые порты: 80, 443 (Telegram), 8080 (HTTP Прокси)

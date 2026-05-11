@@ -106,16 +106,12 @@ detect_os() {
     log "Detected OS: $OS $VER"
     
     # Check if OS is supported
-    if [[ "$OS" == *"Ubuntu"* ]]; then
-        if [[ "${VER%%.*}" -lt "20" ]]; then
-            err "Ubuntu $VER is not supported. Please use Ubuntu 20.04 or later."
-        fi
-    elif [[ "$OS" == *"Debian"* ]]; then
+    if [[ "$OS" == *"Debian"* ]]; then
         if [[ "${VER%%.*}" -lt "11" ]]; then
             err "Debian $VER is not supported. Please use Debian 11 or later."
         fi
     else
-        err "Unsupported OS: $OS. Please use Ubuntu 20.04+ or Debian 11+."
+        err "Unsupported OS: $OS. Please use Debian 11+."
     fi
     
     ok "OS compatibility check passed"
@@ -337,10 +333,8 @@ clean_existing_config() {
     
     # Reset Telegram proxy configuration
     if [ -f "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml" ]; then
-        # Reset to template values
-        sed -i "s|tls_domain = \".*\"|tls_domain = \"REPLACE_WITH_YOUR_DOMAIN\"|g" "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml"
-        sed -i "s|proxy = \".*\"|proxy = \"REPLACE_WITH_YOUR_SECRET\"|g" "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml"
-        log "Reset Telegram proxy configuration"
+        rm -f "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml"
+        log "Removed telemt.toml configuration"
     fi
     
     # Remove SSL certificates
@@ -456,9 +450,12 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     mkdir -p "$SCRIPT_DIR/telegram-proxy/certbot/logs"
     rm -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf"
     
-    # Set proper permissions for certbot directories
+    # Set proper ownership and permissions for certbot directories
+    chown -R root:root "$SCRIPT_DIR/telegram-proxy/certbot/www"
+    chown -R root:root "$SCRIPT_DIR/telegram-proxy/certbot/certs"
+    chown -R root:root "$SCRIPT_DIR/telegram-proxy/certbot/logs"
     chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/www"
-    chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/certs"
+    chmod 700 "$SCRIPT_DIR/telegram-proxy/certbot/certs"
     chmod 755 "$SCRIPT_DIR/telegram-proxy/certbot/logs"
     
     ok "Telegram Proxy configured"
