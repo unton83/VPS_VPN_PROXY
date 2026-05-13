@@ -735,11 +735,11 @@ Deployment Date: $(date)
 EOF
 
 if [ "$DEPLOY_HTTP" = true ]; then
-    echo "  HTTP Proxy (3proxy):"
-    echo "    HTTP:   YOUR_VPS_IP:8080"
-    echo "    Username: ${GREEN}user1${NC}"
-    echo "    Password: ${GREEN}$USER1_PASS${NC}"
-    echo "    Other users: user2 (${GREEN}$USER2_PASS${NC}), user3 (${GREEN}$USER3_PASS${NC})"
+    echo -e "  HTTP Proxy (3proxy):"
+    echo -e "    HTTP:   YOUR_VPS_IP:8080"
+    echo -e "    Username: ${GREEN}user1${NC}"
+    echo -e "    Password: ${GREEN}$USER1_PASS${NC}"
+    echo -e "    Other users: user2 (${GREEN}$USER2_PASS${NC}), user3 (${GREEN}$USER3_PASS${NC})"
     echo ""
     
     # Add to info file
@@ -760,13 +760,13 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     TLS_HEX=$(printf '%s' "$DOMAIN" | od -An -tx1 | tr -d ' \n')
     FULL_SECRET="ee${SECRET}${TLS_HEX}"
     
-    echo "  Telegram Proxy (telemt):"
-    echo "    Domain: ${GREEN}$DOMAIN${NC}"
-    echo "    Secret: ${GREEN}$SECRET${NC}"
+    echo -e "  Telegram Proxy (telemt):"
+    echo -e "    Domain: ${GREEN}$DOMAIN${NC}"
+    echo -e "    Secret: ${GREEN}$SECRET${NC}"
     echo ""
-    echo "    Telegram proxy links:"
-    echo "    ${GREEN}tg://proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET${NC}"
-    echo "    ${GREEN}https://t.me/proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET${NC}"
+    echo -e "    Telegram proxy links:"
+    echo -e "    ${GREEN}tg://proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET${NC}"
+    echo -e "    ${GREEN}https://t.me/proxy?server=$DOMAIN&port=443&secret=$FULL_SECRET${NC}"
     echo ""
     
     # Add to info file
@@ -831,6 +831,6 @@ To read this information later: cat $INFO_FILE
 ========================================
 EOF
 
-echo "  📄 Deployment info saved to: ${GREEN}$INFO_FILE${NC}"
+echo -e "  📄 Deployment info saved to: ${GREEN}$INFO_FILE${NC}"
 echo -e "  📖 To read later: ${GREEN}cat $INFO_FILE${NC}"
 echo ""
