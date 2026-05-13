@@ -75,22 +75,20 @@ set_stage() {
     log "Entering deployment stage: $1"
 }
 
-# Check if running from curl or local
-if [ -t 0 ]; then
-    # Running from curl - download to user home
-    USER_HOME="$HOME"
-    PROJECT_DIR="$USER_HOME/VPS_VPN_PROXY"
-    SCRIPT_DIR="$PROJECT_DIR"
-    
-    log "Running from curl - setting up in $PROJECT_DIR"
-    
-    # Download and extract to user home
-    if [ ! -d "$PROJECT_DIR" ]; then
+# Download repository if running from curl and files are missing
+download_repository_if_needed() {
+    if [ "$RUNNING_FROM_CURL" = true ]; then
+        log "Downloading repository to $PROJECT_DIR..."
         cd "$USER_HOME"
+        
+        # Remove existing directory if it exists
+        if [ -d "$PROJECT_DIR" ]; then
+            log "Directory $PROJECT_DIR exists, removing old files..."
+            rm -rf "$PROJECT_DIR"
+        fi
         
         # Download repository as tarball
         REPO_URL="https://github.com/unton83/VPS_VPN_PROXY/archive/master.tar.gz"
-        log "Downloading repository to $PROJECT_DIR..."
         if ! curl -fsSL "$REPO_URL" -o repository.tar.gz; then
             err "Failed to download repository"
         fi
@@ -107,9 +105,21 @@ if [ -t 0 ]; then
         
         ok "Repository downloaded and extracted to $PROJECT_DIR"
     fi
+}
+
+# Check if running from curl or local
+if [ -t 0 ]; then
+    # Running from curl - set target directory
+    USER_HOME="$HOME"
+    PROJECT_DIR="$USER_HOME/VPS_VPN_PROXY"
+    SCRIPT_DIR="$PROJECT_DIR"
+    RUNNING_FROM_CURL=true
+    
+    log "Running from curl - will set up in $PROJECT_DIR"
 else
     # Running locally - use script directory
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    RUNNING_FROM_CURL=false
 fi
 
 # ── 1. Port Availability Check ───────────────────────────────
@@ -287,37 +297,83 @@ validate_domain() {
     fi
 }
 
-# Check if required files exist
+# Check if required files exist and download repository if needed
 check_required_files() {
     local missing_files=()
+    local need_download=false
     
+    # First check for missing files
     if [ "$DEPLOY_HTTP" = true ]; then
         if [ ! -f "$SCRIPT_DIR/http-proxy/docker-compose.yml" ]; then
             missing_files+=("http-proxy/docker-compose.yml")
+            need_download=true
         fi
         if [ ! -f "$SCRIPT_DIR/http-proxy/3proxy.cfg" ]; then
             missing_files+=("http-proxy/3proxy.cfg")
+            need_download=true
         fi
     fi
     
     if [ "$DEPLOY_TELEGRAM" = true ]; then
         if [ ! -f "$SCRIPT_DIR/telegram-proxy/docker-compose.yml" ]; then
             missing_files+=("telegram-proxy/docker-compose.yml")
+            need_download=true
         fi
         if [ ! -f "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml" ]; then
             missing_files+=("telegram-proxy/telemt/telemt.toml")
+            need_download=true
         fi
         if [ ! -f "$SCRIPT_DIR/telegram-proxy/nginx/ssl.conf.template" ]; then
             missing_files+=("telegram-proxy/nginx/ssl.conf.template")
+            need_download=true
         fi
     fi
     
     if [ ! -f "$SCRIPT_DIR/fail2ban/jail.local" ]; then
         missing_files+=("fail2ban/jail.local")
+        need_download=true
     fi
     
     if [ ! -f "$SCRIPT_DIR/fail2ban/docker-nginx.conf" ]; then
         missing_files+=("fail2ban/docker-nginx.conf")
+        need_download=true
+    fi
+    
+    # If files are missing and we're running from curl, download repository
+    if [ "$need_download" = true ] && [ "$RUNNING_FROM_CURL" = true ]; then
+        log "Some required files are missing, downloading repository..."
+        download_repository_if_needed
+        
+        # After download, check again
+        missing_files=()
+        if [ "$DEPLOY_HTTP" = true ]; then
+            if [ ! -f "$SCRIPT_DIR/http-proxy/docker-compose.yml" ]; then
+                missing_files+=("http-proxy/docker-compose.yml")
+            fi
+            if [ ! -f "$SCRIPT_DIR/http-proxy/3proxy.cfg" ]; then
+                missing_files+=("http-proxy/3proxy.cfg")
+            fi
+        fi
+        
+        if [ "$DEPLOY_TELEGRAM" = true ]; then
+            if [ ! -f "$SCRIPT_DIR/telegram-proxy/docker-compose.yml" ]; then
+                missing_files+=("telegram-proxy/docker-compose.yml")
+            fi
+            if [ ! -f "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml" ]; then
+                missing_files+=("telegram-proxy/telemt/telemt.toml")
+            fi
+            if [ ! -f "$SCRIPT_DIR/telegram-proxy/nginx/ssl.conf.template" ]; then
+                missing_files+=("telegram-proxy/nginx/ssl.conf.template")
+            fi
+        fi
+        
+        if [ ! -f "$SCRIPT_DIR/fail2ban/jail.local" ]; then
+            missing_files+=("fail2ban/jail.local")
+        fi
+        
+        if [ ! -f "$SCRIPT_DIR/fail2ban/docker-nginx.conf" ]; then
+            missing_files+=("fail2ban/docker-nginx.conf")
+        fi
     fi
     
     if [ ${#missing_files[@]} -gt 0 ]; then
@@ -401,10 +457,10 @@ clean_existing_config() {
         log "Removed HTTP proxy passwords"
     fi
     
-    # Reset Telegram proxy configuration
+    # Reset Telegram proxy configuration - don't remove template file
+    # The telemt.toml template will be patched later during configuration
     if [ -f "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml" ]; then
-        rm -f "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml"
-        log "Removed telemt.toml configuration"
+        log "Keeping telemt.toml template (will be reconfigured)"
     fi
     
     # Remove SSL certificates
@@ -463,8 +519,8 @@ case $CHOICE in
     *) err "Invalid choice" ;;
 esac
 
-check_required_files
 check_existing_config
+check_required_files
 
 # ── 4. HTTP Proxy Setup ─────────────────────────────────
 if [ "$DEPLOY_HTTP" = true ]; then
