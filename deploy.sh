@@ -831,6 +831,6 @@ To read this information later: cat $INFO_FILE
 ========================================
 EOF
 
-echo -e "  📄 Deployment info saved to: ${GREEN}$INFO_FILE${NC}"
-echo -e "  📖 To read later: ${GREEN}cat $INFO_FILE${NC}"
+echo -e "Deployment info saved to: ${GREEN}$INFO_FILE${NC}"
+echo -e "To read later: ${GREEN}cat $INFO_FILE${NC}"
 echo ""
