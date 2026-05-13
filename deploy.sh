@@ -415,7 +415,7 @@ check_existing_config() {
         echo ""
         echo -e "${YELLOW}Choose installation mode:${NC}"
         echo "1) Continue with existing configuration"
-        echo "2) Clean install (remove existing config and start fresh)"
+        echo "2) Clean install (remove entire VPS_VPN_PROXY directory and start fresh)"
         echo "3) Exit"
         echo ""
         
@@ -427,18 +427,18 @@ check_existing_config() {
         read -p "Enter choice [1-3]: " CLEAN_CHOICE
         
         case $CLEAN_CHOICE in
-            1) 
+            1)
                 log "Continuing with existing configuration..."
                 ;;
-            2) 
-                log "Performing clean install..."
+            2)
+                log "Performing clean install (removing entire VPS_VPN_PROXY directory)..."
                 clean_existing_config
                 ;;
-            3) 
+            3)
                 echo "Exiting..."
                 exit 0
                 ;;
-            *) 
+            *)
                 err "Invalid choice"
                 ;;
         esac
@@ -447,45 +447,54 @@ check_existing_config() {
     fi
 }
 
-# Clean existing configuration files
+# Clean existing configuration files - complete removal of VPS_VPN_PROXY directory
 clean_existing_config() {
-    log "Removing existing configuration files..."
+    log "Performing clean install - removing entire VPS_VPN_PROXY directory..."
     
-    # Remove HTTP proxy passwords
-    if [ -f "$SCRIPT_DIR/http-proxy/3proxy.passwd" ]; then
-        rm -f "$SCRIPT_DIR/http-proxy/3proxy.passwd"
-        log "Removed HTTP proxy passwords"
+    # Determine the directory to remove
+    local target_dir=""
+    if [ "$RUNNING_FROM_CURL" = true ]; then
+        # When running from curl, PROJECT_DIR is set to $HOME/VPS_VPN_PROXY
+        target_dir="$PROJECT_DIR"
+    else
+        # When running locally, use SCRIPT_DIR (current directory of the script)
+        target_dir="$SCRIPT_DIR"
     fi
     
-    # Reset Telegram proxy configuration - don't remove template file
-    # The telemt.toml template will be patched later during configuration
-    if [ -f "$SCRIPT_DIR/telegram-proxy/telemt/telemt.toml" ]; then
-        log "Keeping telemt.toml template (will be reconfigured)"
+    # Safety check: ensure target_dir is not root or home directory
+    if [ -z "$target_dir" ] || [ "$target_dir" = "/" ] || [ "$target_dir" = "$HOME" ]; then
+        err "Safety check failed: cannot remove directory $target_dir"
     fi
     
-    # Remove SSL certificates
-    if [ -d "$SCRIPT_DIR/telegram-proxy/certbot/certs" ]; then
-        rm -rf "$SCRIPT_DIR/telegram-proxy/certbot/certs"/*
-        log "Removed SSL certificates"
-    fi
-    
-    # Note: telemt uses tmpfs, no persistent data to remove
-    log "Telemt uses tmpfs - no persistent data to remove"
-    
-    # Remove nginx SSL config
-    if [ -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf" ]; then
-        rm -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf"
-        log "Removed nginx SSL configuration"
+    # Check if directory exists
+    if [ ! -d "$target_dir" ]; then
+        warn "Directory $target_dir does not exist, nothing to remove"
+        return 0
     fi
     
     # Stop and remove containers if running
     if command -v docker >/dev/null 2>&1; then
-        cd "$SCRIPT_DIR/http-proxy" 2>/dev/null && docker compose down -v 2>/dev/null || true
-        cd "$SCRIPT_DIR/telegram-proxy" 2>/dev/null && docker compose down -v 2>/dev/null || true
-        log "Stopped and removed existing containers"
+        log "Stopping and removing existing containers..."
+        cd "$target_dir/http-proxy" 2>/dev/null && docker compose down -v 2>/dev/null || true
+        cd "$target_dir/telegram-proxy" 2>/dev/null && docker compose down -v 2>/dev/null || true
     fi
     
-    ok "Clean install completed"
+    # Remove the entire directory
+    log "Removing directory: $target_dir"
+    rm -rf "$target_dir"
+    
+    # If running from curl, we need to exit because the script files are now gone
+    if [ "$RUNNING_FROM_CURL" = true ]; then
+        ok "Clean install completed. Directory $target_dir has been removed."
+        log "Please run the installation command again to start fresh installation."
+        exit 0
+    else
+        # When running locally, the script is still in memory
+        ok "Clean install completed. Directory $target_dir has been removed."
+        warn "Script is running from removed directory. Some operations may fail."
+        warn "Please restart the script from a fresh copy of the repository."
+        exit 0
+    fi
 }
 
 # Execute system preparation
