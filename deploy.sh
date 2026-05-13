@@ -194,8 +194,8 @@ detect_os() {
 # Update system packages
 update_system() {
     log "Updating system packages..."
-    run_cmd apt update
-    run_cmd apt upgrade -y
+    run_cmd apt update -q
+    run_cmd apt upgrade -y -q
     ok "System packages updated"
 }
 
