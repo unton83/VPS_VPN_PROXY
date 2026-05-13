@@ -437,8 +437,6 @@ detect_os
 update_system
 install_docker
 install_dependencies
-check_required_files
-check_existing_config
 
 ok "System preparation completed"
 
@@ -464,6 +462,9 @@ case $CHOICE in
     4) echo "Exiting..."; exit 0 ;;
     *) err "Invalid choice" ;;
 esac
+
+check_required_files
+check_existing_config
 
 # ── 4. HTTP Proxy Setup ─────────────────────────────────
 if [ "$DEPLOY_HTTP" = true ]; then
