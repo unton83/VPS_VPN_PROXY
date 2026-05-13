@@ -6,7 +6,7 @@ One-command deployment of proxy services on low-resource VPS (1CPU, 1GB RAM, 5GB
 
 - **HTTP Proxy (3proxy)** - HTTP proxy with authentication
 - **Telegram Proxy (telemt)** - MTProto proxy with FakeTLS masking and cover website
-- **AmneziaWG 2.0** - WireGuard VPN (prepared for future implementation)
+- **OpenVPN** - (prepared for future implementation)
 
 ## Quick Start
 
