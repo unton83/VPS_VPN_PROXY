@@ -122,30 +122,8 @@ else
     RUNNING_FROM_CURL=false
 fi
 
-# ── 1. Port Availability Check ───────────────────────────────
-log "Checking port availability..."
+# ── 1. Check if Telegram is accessible via curl ───────────────────────────────
 
-# Check if required ports are free
-check_ports() {
-    local ports=(80 443 8080)
-    local conflicts=()
-    
-    for port in "${ports[@]}"; do
-        if netstat -tuln | grep -q ":$port "; then
-            conflicts+=("$port")
-        fi
-    done
-    
-    if [ ${#conflicts[@]} -gt 0 ]; then
-        err "Ports ${conflicts[*]} are already in use. Please free these ports and try again."
-    fi
-    
-    ok "Required ports (80, 443, 8080) are available"
-}
-
-check_ports
-
-# Check if Telegram is accessible via curl
 check_telegram_access() {
     log "Testing connection to web.telegram.org..."
     
@@ -539,6 +517,27 @@ esac
 
 check_existing_config
 check_required_files
+
+# ── 3.1. Port Availability Check (service-specific) ───────────────────────────────
+log "Checking port availability for selected services..."
+
+check_port() {
+    local port="$1"
+    if ss -tlnp | grep -q ":${port} "; then
+        err "Port $port is already in use. Please free it and try again."
+    fi
+}
+
+if [ "$DEPLOY_HTTP" = true ]; then
+    check_port 8080
+fi
+
+if [ "$DEPLOY_TELEGRAM" = true ]; then
+    check_port 80
+    check_port 443
+fi
+
+ok "Selected ports are available"
 
 # ── 4. HTTP Proxy Setup ─────────────────────────────────
 if [ "$DEPLOY_HTTP" = true ]; then
