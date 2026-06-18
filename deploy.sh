@@ -503,6 +503,15 @@ update_system
 install_docker
 install_dependencies
 
+# Detect server IP after curl/dig are installed
+detect_server_ip() {
+    SERVER_IP=$(curl -4s ifconfig.me || curl -4s ipinfo.io/ip || curl -4s icanhazip.com)
+    [[ -z "$SERVER_IP" ]] && SERVER_IP="YOUR_VPS_IP"
+    ok "Server IP: $SERVER_IP"
+}
+
+detect_server_ip
+
 ok "System preparation completed"
 
 # ── 3. Service Selection ───────────────────────────────
@@ -548,7 +557,7 @@ user1:CL:$USER1_PASS
 user2:CL:$USER2_PASS
 user3:CL:$USER3_PASS
 EOF
-    
+
     ok "HTTP Proxy configured"
 fi
 
@@ -644,7 +653,6 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
         # Check DNS resolution first
         log "Checking DNS resolution for $DOMAIN ..."
         DOMAIN_IP=$(dig +short "$DOMAIN" | head -n1)
-        SERVER_IP=$(curl -4s ifconfig.me || curl -4s ipinfo.io/ip || curl -4s icanhazip.com)
         if [ "$DOMAIN_IP" != "$SERVER_IP" ]; then
             err "DNS A record for $DOMAIN ($DOMAIN_IP) does not match server IP ($SERVER_IP)"
         fi
@@ -736,21 +744,21 @@ EOF
 
 if [ "$DEPLOY_HTTP" = true ]; then
     echo -e "  HTTP Proxy (3proxy):"
-    echo -e "    HTTP:   YOUR_VPS_IP:8080"
-    echo -e "    Username: ${GREEN}user1${NC}"
-    echo -e "    Password: ${GREEN}$USER1_PASS${NC}"
-    echo -e "    Other users: user2 (${GREEN}$USER2_PASS${NC}), user3 (${GREEN}$USER3_PASS${NC})"
+    echo -e "    HTTP:   ${GREEN}${SERVER_IP}:8080${NC}"
+    echo -e ""
+    echo -e "    ${GREEN}user1:${USER1_PASS}@${SERVER_IP}:8080${NC}"
+    echo -e "    ${GREEN}user2:${USER2_PASS}@${SERVER_IP}:8080${NC}"
+    echo -e "    ${GREEN}user3:${USER3_PASS}@${SERVER_IP}:8080${NC}"
     echo ""
     
     # Add to info file
     cat >> "$INFO_FILE" << EOF
 HTTP Proxy (3proxy):
-- HTTP: YOUR_VPS_IP:8080
-- Username: user1
-- Password: $USER1_PASS
-- Other users: 
-  * user2: $USER2_PASS
-  * user3: $USER3_PASS
+- HTTP: ${SERVER_IP}:8080
+- Connections:
+  * user1:${USER1_PASS}@${SERVER_IP}:8080
+  * user2:${USER2_PASS}@${SERVER_IP}:8080
+  * user3:${USER3_PASS}@${SERVER_IP}:8080
 
 EOF
 fi
