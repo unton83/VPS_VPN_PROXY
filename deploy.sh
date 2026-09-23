@@ -65,7 +65,68 @@ rollback_telegram_proxy() {
     warn "Rolling back Telegram Proxy..."
     cd "$SCRIPT_DIR/telegram-proxy" 2>/dev/null && docker compose down -v 2>/dev/null || true
     rm -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf" 2>/dev/null || true
+    rm -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/vpn-panel.conf" 2>/dev/null || true
     log "Telegram Proxy rolled back."
+}
+
+rollback_wireguard() {
+    warn "Rolling back WireGuard Panel..."
+    cd "$SCRIPT_DIR/wireguard-panel" 2>/dev/null && docker compose down -v 2>/dev/null || true
+    rm -f "$SCRIPT_DIR/wireguard-panel/.env" 2>/dev/null || true
+    log "WireGuard Panel rolled back."
+}
+
+# Add the amnezia PPA signing key (official amneziawg docs)
+add_amnezia_gpg_key() {
+    if command -v apt-key >/dev/null 2>&1; then
+        apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 57290828 || return 1
+    else
+        curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x57290828" \
+            | gpg --dearmor > /etc/apt/trusted.gpg.d/amnezia.gpg || return 1
+    fi
+}
+
+# Install the AmneziaWG kernel module on the host (required for EXPERIMENTAL_AWG)
+# Official method for Debian: https://github.com/amnezia-vpn/amneziawg-linux-kernel-module#debian
+install_amneziawg_module() {
+    log "Installing AmneziaWG kernel module (amnezia PPA)..."
+
+    if lsmod | grep -q '^amneziawg'; then
+        ok "amneziawg module already loaded"
+        return 0
+    fi
+
+    # Install prerequisites
+    if ! apt install -y software-properties-common python3-launchpadlib gnupg2 "linux-headers-$(uname -r)"; then
+        warn "Failed to install amneziawg build prerequisites"
+        return 1
+    fi
+
+    # Add the amnezia PPA repository once
+    if [ ! -f /etc/apt/sources.list.d/amnezia-ppa.list ]; then
+        if ! add_amnezia_gpg_key; then
+            warn "Failed to import amnezia PPA signing key"
+            return 1
+        fi
+        tee /etc/apt/sources.list.d/amnezia-ppa.list > /dev/null <<'EOF'
+deb https://ppa.launchpadcontent.net/amnezia/ppa/ubuntu focal main
+deb-src https://ppa.launchpadcontent.net/amnezia/ppa/ubuntu focal main
+EOF
+        apt update || { warn "apt update failed after adding amnezia PPA"; return 1; }
+    fi
+
+    # Install the DKMS package (builds the module for the running kernel)
+    if ! apt install -y amneziawg; then
+        warn "Failed to install amneziawg package"
+        return 1
+    fi
+
+    if ! modprobe amneziawg; then
+        warn "Failed to load amneziawg module"
+        return 1
+    fi
+
+    ok "AmneziaWG kernel module installed"
 }
 
 # Global deployment stage tracking
@@ -270,8 +331,9 @@ install_dependencies() {
 
 # Validate domain format
 validate_domain() {
-    if [[ ! "$DOMAIN" =~ ^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$ ]]; then
-        err "Invalid domain format: $DOMAIN"
+    local d="$1"
+    if [[ ! "$d" =~ ^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$ ]]; then
+        err "Invalid domain format: $d"
     fi
 }
 
@@ -303,6 +365,17 @@ check_required_files() {
         fi
         if [ ! -f "$SCRIPT_DIR/telegram-proxy/nginx/ssl.conf.template" ]; then
             missing_files+=("telegram-proxy/nginx/ssl.conf.template")
+            need_download=true
+        fi
+    fi
+    
+    if [ "$DEPLOY_WIREGUARD" = true ]; then
+        if [ ! -f "$SCRIPT_DIR/wireguard-panel/docker-compose.yml" ]; then
+            missing_files+=("wireguard-panel/docker-compose.yml")
+            need_download=true
+        fi
+        if [ ! -f "$SCRIPT_DIR/telegram-proxy/nginx/vpn-panel.conf.template" ]; then
+            missing_files+=("telegram-proxy/nginx/vpn-panel.conf.template")
             need_download=true
         fi
     fi
@@ -345,6 +418,15 @@ check_required_files() {
             fi
         fi
         
+        if [ "$DEPLOY_WIREGUARD" = true ]; then
+            if [ ! -f "$SCRIPT_DIR/wireguard-panel/docker-compose.yml" ]; then
+                missing_files+=("wireguard-panel/docker-compose.yml")
+            fi
+            if [ ! -f "$SCRIPT_DIR/telegram-proxy/nginx/vpn-panel.conf.template" ]; then
+                missing_files+=("telegram-proxy/nginx/vpn-panel.conf.template")
+            fi
+        fi
+        
         if [ ! -f "$SCRIPT_DIR/fail2ban/jail.local" ]; then
             missing_files+=("fail2ban/jail.local")
         fi
@@ -379,6 +461,10 @@ check_existing_config() {
     if [ -d "$SCRIPT_DIR/telegram-proxy/certbot/certs/live" ] && \
        [ "$(ls -A "$SCRIPT_DIR/telegram-proxy/certbot/certs/live" 2>/dev/null)" ]; then
         existing_files+=("SSL certificates")
+    fi
+    
+    if [ -f "$SCRIPT_DIR/wireguard-panel/.env" ]; then
+        existing_files+=("Configured WireGuard Panel")
     fi
     
     # Note: telemt uses tmpfs, no persistent data to check
@@ -455,6 +541,7 @@ clean_existing_config() {
         log "Stopping and removing existing containers..."
         cd "$target_dir/http-proxy" 2>/dev/null && docker compose down -v 2>/dev/null || true
         cd "$target_dir/telegram-proxy" 2>/dev/null && docker compose down -v 2>/dev/null || true
+        cd "$target_dir/wireguard-panel" 2>/dev/null && docker compose down -v 2>/dev/null || true
     fi
     
     # Remove the entire directory
@@ -497,21 +584,29 @@ echo ""
 echo -e "${YELLOW}Select services to be deployed:${NC}"
 echo "1) HTTP Proxy only (3proxy)"
 echo "2) Telegram Proxy only (telemt)"
-echo "3) Both HTTP Proxy and Telegram Proxy"
-echo "4) Exit"
+echo "3) WireGuard Panel only (wg-easy)"
+echo "4) HTTP Proxy + Telegram Proxy"
+echo "5) Telegram Proxy + WireGuard Panel"
+echo "6) HTTP Proxy + WireGuard Panel"
+echo "7) All services (HTTP + Telegram + WireGuard)"
+echo "8) Exit"
 echo ""
 # Remove piped input option - it's not supported
 if [ ! -t 0 ]; then
     err "Piped input is not supported. Please run the script interactively."
 fi
 
-read -p "Enter choice [1-4]: " CHOICE
+read -p "Enter choice [1-8]: " CHOICE
 
 case $CHOICE in
-    1) DEPLOY_HTTP=true; DEPLOY_TELEGRAM=false ;;
-    2) DEPLOY_HTTP=false; DEPLOY_TELEGRAM=true ;;
-    3) DEPLOY_HTTP=true; DEPLOY_TELEGRAM=true ;;
-    4) echo "Exiting..."; exit 0 ;;
+    1) DEPLOY_HTTP=true; DEPLOY_TELEGRAM=false; DEPLOY_WIREGUARD=false ;;
+    2) DEPLOY_HTTP=false; DEPLOY_TELEGRAM=true; DEPLOY_WIREGUARD=false ;;
+    3) DEPLOY_HTTP=false; DEPLOY_TELEGRAM=false; DEPLOY_WIREGUARD=true ;;
+    4) DEPLOY_HTTP=true; DEPLOY_TELEGRAM=true; DEPLOY_WIREGUARD=false ;;
+    5) DEPLOY_HTTP=false; DEPLOY_TELEGRAM=true; DEPLOY_WIREGUARD=true ;;
+    6) DEPLOY_HTTP=true; DEPLOY_TELEGRAM=false; DEPLOY_WIREGUARD=true ;;
+    7) DEPLOY_HTTP=true; DEPLOY_TELEGRAM=true; DEPLOY_WIREGUARD=true ;;
+    8) echo "Exiting..."; exit 0 ;;
     *) err "Invalid choice" ;;
 esac
 
@@ -523,7 +618,7 @@ log "Checking port availability for selected services..."
 
 check_port() {
     local port="$1"
-    if ss -tlnp | grep -q ":${port} "; then
+    if ss -tlnp | grep -q ":${port} " || ss -ulnp | grep -q ":${port} "; then
         err "Port $port is already in use. Please free it and try again."
     fi
 }
@@ -537,6 +632,32 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     check_port 443
 fi
 
+if [ "$DEPLOY_WIREGUARD" = true ]; then
+    check_port 51820
+    check_port 51821
+    check_port 8443
+    
+    # Check TUN device availability
+    if [ ! -c /dev/net/tun ]; then
+        warn "/dev/net/tun not found - attempting to create it"
+        mkdir -p /dev/net
+        mknod /dev/net/tun c 10 200 2>/dev/null || true
+        chmod 600 /dev/net/tun 2>/dev/null || true
+    fi
+    if [ ! -c /dev/net/tun ]; then
+        err "/dev/net/tun is unavailable. Enable TUN on your VPS (modprobe tun or enable in panel)."
+    fi
+    
+    # Check kernel version for WireGuard support (>= 5.6)
+    KERNEL_MAJOR=$(uname -r | cut -d. -f1)
+    KERNEL_MINOR=$(uname -r | cut -d. -f2)
+    if [ "$KERNEL_MAJOR" -lt 5 ] || { [ "$KERNEL_MAJOR" -eq 5 ] && [ "$KERNEL_MINOR" -lt 6 ]; }; then
+        warn "Kernel $(uname -r) is older than 5.6. WireGuard may require wireguard-dkms or a kernel upgrade."
+    else
+        ok "Kernel $(uname -r) supports WireGuard"
+    fi
+fi
+
 ok "Selected ports are available"
 
 # ── 4. HTTP Proxy Setup ─────────────────────────────────
@@ -544,17 +665,13 @@ if [ "$DEPLOY_HTTP" = true ]; then
     echo ""
     log "Setting up HTTP Proxy (3proxy)..."
     
-    # Generate secure passwords for users
-    log "Generating secure passwords..."
-    USER1_PASS=$(openssl rand -base64 16)
-    USER2_PASS=$(openssl rand -base64 16)
-    USER3_PASS=$(openssl rand -base64 16)
+    # Generate a single secure password
+    log "Generating secure password..."
+    USER_PASS=$(openssl rand -base64 16)
     
     # Create password file for 3proxy
     cat > "$SCRIPT_DIR/http-proxy/3proxy.passwd" << EOF
-user1:CL:$USER1_PASS
-user2:CL:$USER2_PASS
-user3:CL:$USER3_PASS
+user:CL:$USER_PASS
 EOF
 
     ok "HTTP Proxy configured"
@@ -569,7 +686,7 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     echo -e "${YELLOW}DNS A record must already point to this server's IP.${NC}"
     read -r DOMAIN
     [[ -z "$DOMAIN" ]] && err "Domain cannot be empty."
-    validate_domain
+    validate_domain "$DOMAIN"
     
     echo ""
     echo -e "${YELLOW}Enter your email for Let's Encrypt expiry notifications:${NC}"
@@ -604,6 +721,73 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
     ok "Telegram Proxy configured"
 fi
 
+# ── 5.5. WireGuard Panel Setup ─────────────────────────────────
+if [ "$DEPLOY_WIREGUARD" = true ]; then
+    echo ""
+    log "Setting up WireGuard Panel (wg-easy)..."
+    
+    # The panel uses the same domain as the other services (single-domain setup).
+    # If Telegram was not selected, ask for the domain here.
+    if [ "$DEPLOY_TELEGRAM" != true ] || [ -z "${DOMAIN:-}" ]; then
+        echo -e "${YELLOW}Enter your domain (e.g. example.com).${NC}"
+        echo -e "${YELLOW}DNS A record must already point to this server's IP.${NC}"
+        read -r DOMAIN
+        [[ -z "$DOMAIN" ]] && err "Domain cannot be empty."
+        validate_domain "$DOMAIN"
+    fi
+    
+    # Request email if not already collected for Telegram
+    if [ "$DEPLOY_TELEGRAM" != true ] || [ -z "${EMAIL:-}" ]; then
+        echo ""
+        echo -e "${YELLOW}Enter your email for Let's Encrypt expiry notifications:${NC}"
+        read -r EMAIL
+        [[ -z "$EMAIL" ]] && err "Email cannot be empty."
+    fi
+    
+    # Ask about experimental AmneziaWG
+    echo ""
+    echo -e "${YELLOW}Enable AmneziaWG (experimental obfuscation against DPI)?${NC}"
+    echo "  1) No, standard WireGuard (recommended)"
+    echo "  2) Yes, AmneziaWG (installs the amneziawg kernel module on the host)"
+    read -p "Enter choice [1-2]: " AWG_CHOICE
+    case $AWG_CHOICE in
+        1) ENABLE_AWG=false ;;
+        2) ENABLE_AWG=true ;;
+        *) err "Invalid choice" ;;
+    esac
+    
+    if [ "$ENABLE_AWG" = true ]; then
+        if ! install_amneziawg_module; then
+            warn "AmneziaWG module unavailable - falling back to standard WireGuard"
+            ENABLE_AWG=false
+        fi
+    fi
+    
+    # Generate admin password
+    log "Generating admin password..."
+    WG_ADMIN_PASSWORD=$(openssl rand -hex 16)
+    [[ -z "$WG_ADMIN_PASSWORD" ]] && err "Failed to generate admin password."
+    
+    # Prepare data directory
+    mkdir -p "$SCRIPT_DIR/wireguard-panel/data"
+    
+    # Create .env file with unattended setup credentials
+    cat > "$SCRIPT_DIR/wireguard-panel/.env" << EOF
+INIT_ENABLED=true
+INIT_USERNAME=admin
+INIT_PASSWORD=$WG_ADMIN_PASSWORD
+INIT_HOST=$SERVER_IP
+INIT_PORT=51820
+INIT_DNS=1.1.1.1,8.8.8.8
+EXPERIMENTAL_AWG=$([ "$ENABLE_AWG" = true ] && echo "true" || echo "false")
+INSECURE=true
+TZ=Europe/Moscow
+EOF
+    chmod 600 "$SCRIPT_DIR/wireguard-panel/.env"
+    
+    ok "WireGuard Panel configured"
+fi
+
 # ── 6. Deploy Services ─────────────────────────────────
 echo ""
 log "Deploying services..."
@@ -620,9 +804,9 @@ if [ "$DEPLOY_HTTP" = true ]; then
     ok "HTTP Proxy started on port 8080 (HTTP)"
 fi
 
-# Deploy Telegram Proxy
-if [ "$DEPLOY_TELEGRAM" = true ]; then
-    log "Starting Telegram Proxy..."
+# Deploy reverse proxy gateway (nginx) — used by Telegram Proxy and/or WireGuard Panel
+if [ "$DEPLOY_TELEGRAM" = true ] || [ "$DEPLOY_WIREGUARD" = true ]; then
+    log "Starting reverse proxy gateway (nginx)..."
     (
         cd "$SCRIPT_DIR/telegram-proxy"
         
@@ -649,7 +833,7 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
             sleep 2
         done
         
-        # Check DNS resolution first
+        # Check DNS resolution for the domain
         log "Checking DNS resolution for $DOMAIN ..."
         DOMAIN_IP=$(dig +short "$DOMAIN" | head -n1)
         if [ "$DOMAIN_IP" != "$SERVER_IP" ]; then
@@ -669,22 +853,77 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
             err "Failed to obtain Let's Encrypt certificate :("
         fi
         
-        # Enable SSL on nginx
-        log "Enabling nginx SSL config (port 8443 for cover site)..."
-        sed "s|{{DOMAIN}}|$DOMAIN|g" "$SCRIPT_DIR/telegram-proxy/nginx/ssl.conf.template" \
-            > "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf"
+        # Enable SSL on nginx (cover site for telemt, internal port 8444)
+        if [ "$DEPLOY_TELEGRAM" = true ]; then
+            log "Enabling nginx SSL config (port 8444 for cover site)..."
+            sed "s|{{DOMAIN}}|$DOMAIN|g" "$SCRIPT_DIR/telegram-proxy/nginx/ssl.conf.template" \
+                > "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf"
+        fi
+        
+        # Enable reverse proxy for WireGuard Panel (public port 8443, https://$DOMAIN:8443)
+        if [ "$DEPLOY_WIREGUARD" = true ]; then
+            log "Enabling nginx config for WireGuard Panel (https://$DOMAIN:8443)..."
+            sed "s|{{DOMAIN}}|$DOMAIN|g" "$SCRIPT_DIR/telegram-proxy/nginx/vpn-panel.conf.template" \
+                > "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/vpn-panel.conf"
+        fi
         
         if ! docker compose exec -T web nginx -s reload; then
             err "Failed to reload nginx configuration"
         fi
         
-        # Start all telegram proxy services
-        if ! docker compose up -d; then
-            err "Failed to start Telegram Proxy services"
+        # Start remaining services
+        if [ "$DEPLOY_TELEGRAM" = true ]; then
+            if ! docker compose up -d; then
+                err "Failed to start Telegram Proxy services"
+            fi
+        else
+            # WireGuard-only: start web + certbot renewal (no telemt)
+            if ! docker compose up -d web certbot; then
+                err "Failed to start reverse proxy services"
+            fi
         fi
     )
-    ok "Telegram Proxy started on port 443"
+    if [ "$DEPLOY_TELEGRAM" = true ]; then
+        ok "Telegram Proxy started on port 443"
+    fi
+    if [ "$DEPLOY_WIREGUARD" = true ]; then
+        ok "Reverse proxy for WireGuard Panel started on port 8443"
+    fi
     
+    cd "$SCRIPT_DIR"
+fi
+
+# Deploy WireGuard Panel
+if [ "$DEPLOY_WIREGUARD" = true ]; then
+    log "Starting WireGuard Panel..."
+    (
+        cd "$SCRIPT_DIR/wireguard-panel"
+        if ! docker compose up -d; then
+            err "Failed to start WireGuard Panel"
+        fi
+        
+        # Wait for the panel to respond
+        log "Waiting for WireGuard Panel to be ready..."
+        for i in $(seq 1 30); do
+            if curl -sf "http://localhost:51821" >/dev/null 2>&1; then
+                ok "WireGuard Panel is ready"
+                break
+            fi
+            if [ "$i" -eq 30 ]; then
+                docker compose logs --tail=50 wg-easy
+                warn "WireGuard Panel did not respond yet. See logs above."
+            fi
+            sleep 2
+        done
+        
+        # Remove initial credentials from .env (unattended setup has already applied them)
+        if grep -q '^INIT_PASSWORD=' .env; then
+            sed -i '/^INIT_PASSWORD=/d' .env
+            sed -i '/^INIT_USERNAME=/d' .env
+            log "Removed initial admin credentials from .env (saved in deployment_info.txt)"
+        fi
+    )
+    ok "WireGuard Panel started (VPN on UDP 51820)"
     cd "$SCRIPT_DIR"
 fi
 
@@ -745,19 +984,15 @@ if [ "$DEPLOY_HTTP" = true ]; then
     echo -e "  HTTP Proxy (3proxy):"
     echo -e "    HTTP:   ${GREEN}${SERVER_IP}:8080${NC}"
     echo -e ""
-    echo -e "    ${GREEN}user1:${USER1_PASS}@${SERVER_IP}:8080${NC}"
-    echo -e "    ${GREEN}user2:${USER2_PASS}@${SERVER_IP}:8080${NC}"
-    echo -e "    ${GREEN}user3:${USER3_PASS}@${SERVER_IP}:8080${NC}"
+    echo -e "    ${GREEN}user:${USER_PASS}@${SERVER_IP}:8080${NC}"
     echo ""
     
     # Add to info file
     cat >> "$INFO_FILE" << EOF
 HTTP Proxy (3proxy):
 - HTTP: ${SERVER_IP}:8080
-- Connections:
-  * user1:${USER1_PASS}@${SERVER_IP}:8080
-  * user2:${USER2_PASS}@${SERVER_IP}:8080
-  * user3:${USER3_PASS}@${SERVER_IP}:8080
+- Connection:
+  * user:${USER_PASS}@${SERVER_IP}:8080
 
 EOF
 fi
@@ -788,6 +1023,30 @@ Telegram Proxy (telemt):
 EOF
 fi
 
+if [ "$DEPLOY_WIREGUARD" = true ]; then
+    echo -e "  WireGuard Panel (wg-easy):"
+    echo -e "    Panel URL: ${GREEN}https://$DOMAIN:8443${NC}"
+    echo -e "    Username:  ${GREEN}admin${NC}"
+    echo -e "    Password:  ${GREEN}$WG_ADMIN_PASSWORD${NC}"
+    echo ""
+    echo -e "    VPN Endpoint: ${GREEN}${SERVER_IP}:51820/udp${NC}"
+    if [ "$ENABLE_AWG" = true ]; then
+        echo -e "    Mode: ${YELLOW}AmneziaWG (experimental)${NC} — use AmneziaWG-compatible clients"
+    fi
+    echo ""
+    
+    # Add to info file
+    cat >> "$INFO_FILE" << EOF
+WireGuard Panel (wg-easy):
+- Panel URL: https://${DOMAIN}:8443
+- Username: admin
+- Password: ${WG_ADMIN_PASSWORD}
+- VPN Endpoint: ${SERVER_IP}:51820/udp
+- Mode: $([ "$ENABLE_AWG" = true ] && echo "AmneziaWG (experimental)" || echo "Standard WireGuard")
+
+EOF
+fi
+
 echo "  Useful commands:"
 if [ "$DEPLOY_HTTP" = true ]; then
     echo "    cd $SCRIPT_DIR/http-proxy && docker compose ps"
@@ -796,6 +1055,10 @@ fi
 if [ "$DEPLOY_TELEGRAM" = true ]; then
     echo "    cd $SCRIPT_DIR/telegram-proxy && docker compose ps"
     echo "    cd $SCRIPT_DIR/telegram-proxy && docker compose logs -f telemt"
+fi
+if [ "$DEPLOY_WIREGUARD" = true ]; then
+    echo "    cd $SCRIPT_DIR/wireguard-panel && docker compose ps"
+    echo "    cd $SCRIPT_DIR/wireguard-panel && docker compose logs -f wg-easy"
 fi
 
 echo ""
@@ -823,6 +1086,14 @@ if [ "$DEPLOY_TELEGRAM" = true ]; then
 - Telegram Proxy:
   * cd $SCRIPT_DIR/telegram-proxy && docker compose ps
   * cd $SCRIPT_DIR/telegram-proxy && docker compose logs -f telemt
+EOF
+fi
+
+if [ "$DEPLOY_WIREGUARD" = true ]; then
+    cat >> "$INFO_FILE" << EOF
+- WireGuard Panel:
+  * cd $SCRIPT_DIR/wireguard-panel && docker compose ps
+  * cd $SCRIPT_DIR/wireguard-panel && docker compose logs -f wg-easy
 EOF
 fi
 

@@ -4,6 +4,11 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      # Reverse proxy entry for WireGuard Panel (https://vpn.DOMAIN:8443)
+      - "8443:8443"
+    extra_hosts:
+      # Allows nginx to reach the WireGuard Panel bound to 127.0.0.1 on the host
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./website:/usr/share/nginx/html:ro

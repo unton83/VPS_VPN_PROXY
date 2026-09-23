@@ -26,6 +26,7 @@ echo ""
 # ── 1. Check what services are running ───────────────────────────────────
 HTTP_PROXY_RUNNING=false
 TELEGRAM_PROXY_RUNNING=false
+WIREGUARD_RUNNING=false
 
 if docker ps --format "table {{.Names}}" | grep -q "http-proxy"; then
     HTTP_PROXY_RUNNING=true
@@ -33,6 +34,10 @@ fi
 
 if docker ps --format "table {{.Names}}" | grep -q "telegram-proxy\|telegram-web\|telegram-certbot"; then
     TELEGRAM_PROXY_RUNNING=true
+fi
+
+if docker ps --format "table {{.Names}}" | grep -q "wg-easy"; then
+    WIREGUARD_RUNNING=true
 fi
 
 # ── 2. Show menu ────────────────────────────────────────────────────────
@@ -47,6 +52,12 @@ if [ "$TELEGRAM_PROXY_RUNNING" = true ]; then
     echo "  ✓ Telegram Proxy (telemt)"
 else
     echo "  ✗ Telegram Proxy (telemt)"
+fi
+
+if [ "$WIREGUARD_RUNNING" = true ]; then
+    echo "  ✓ WireGuard Panel (wg-easy)"
+else
+    echo "  ✗ WireGuard Panel (wg-easy)"
 fi
 
 echo ""
@@ -95,6 +106,13 @@ case $ACTION in
             echo ""
         fi
         
+        if [ "$WIREGUARD_RUNNING" = true ]; then
+            echo "WireGuard Panel (wg-easy):"
+            cd "$SCRIPT_DIR/wireguard-panel"
+            docker compose ps
+            echo ""
+        fi
+        
         echo "System Resources:"
         docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"
         ;;
@@ -102,63 +120,45 @@ case $ACTION in
     logs)
         echo ""
         echo "Select service to view logs:"
+        i=1
+        LOG_OPTIONS=()
         if [ "$HTTP_PROXY_RUNNING" = true ]; then
-            echo "1) HTTP Proxy (3proxy)"
+            LOG_OPTIONS+=("HTTP Proxy (3proxy)|http-proxy|3proxy")
+            echo "$i) HTTP Proxy (3proxy)"
+            i=$((i+1))
         fi
         if [ "$TELEGRAM_PROXY_RUNNING" = true ]; then
-            if [ "$HTTP_PROXY_RUNNING" = true ]; then
-                echo "2) Telegram Proxy (telemt)"
-                echo "3) Nginx (Telegram)"
-                echo "4) Certbot (Telegram)"
-            else
-                echo "1) Telegram Proxy (telemt)"
-                echo "2) Nginx (Telegram)"
-                echo "3) Certbot (Telegram)"
-            fi
+            LOG_OPTIONS+=("Telegram Proxy (telemt)|telegram-proxy|telemt")
+            echo "$i) Telegram Proxy (telemt)"
+            i=$((i+1))
+            LOG_OPTIONS+=("Nginx (Telegram)|telegram-proxy|web")
+            echo "$i) Nginx (Telegram)"
+            i=$((i+1))
+            LOG_OPTIONS+=("Certbot (Telegram)|telegram-proxy|certbot")
+            echo "$i) Certbot (Telegram)"
+            i=$((i+1))
+        fi
+        if [ "$WIREGUARD_RUNNING" = true ]; then
+            LOG_OPTIONS+=("WireGuard Panel (wg-easy)|wireguard-panel|wg-easy")
+            echo "$i) WireGuard Panel (wg-easy)"
+            i=$((i+1))
         fi
         echo "0) Back to main menu"
         echo ""
         read -p "Enter choice: " LOG_CHOICE
         
-        case $LOG_CHOICE in
-            1)
-                if [ "$HTTP_PROXY_RUNNING" = true ]; then
-                    cd "$SCRIPT_DIR/http-proxy"
-                    docker compose logs -f 3proxy
-                else
-                    cd "$SCRIPT_DIR/telegram-proxy"
-                    docker compose logs -f telemt
-                fi
-                ;;
-            2)
-                if [ "$HTTP_PROXY_RUNNING" = true ]; then
-                    cd "$SCRIPT_DIR/telegram-proxy"
-                    docker compose logs -f telemt
-                else
-                    cd "$SCRIPT_DIR/telegram-proxy"
-                    docker compose logs -f web
-                fi
-                ;;
-            3)
-                if [ "$HTTP_PROXY_RUNNING" = true ]; then
-                    cd "$SCRIPT_DIR/telegram-proxy"
-                    docker compose logs -f web
-                else
-                    cd "$SCRIPT_DIR/telegram-proxy"
-                    docker compose logs -f certbot
-                fi
-                ;;
-            4)
-                cd "$SCRIPT_DIR/telegram-proxy"
-                docker compose logs -f certbot
-                ;;
-            0)
-                exec "$SCRIPT_DIR/manage.sh"
-                ;;
-            *)
-                err "Invalid choice"
-                ;;
-        esac
+        if [ "$LOG_CHOICE" = "0" ]; then
+            exec "$SCRIPT_DIR/manage.sh"
+        fi
+        
+        idx=$((LOG_CHOICE - 1))
+        if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#LOG_OPTIONS[@]}" ]; then
+            IFS='|' read -r _log_name _log_dir _log_svc <<< "${LOG_OPTIONS[$idx]}"
+            cd "$SCRIPT_DIR/$_log_dir"
+            docker compose logs -f "$_log_svc"
+        else
+            err "Invalid choice"
+        fi
         ;;
         
     restart)
@@ -177,6 +177,13 @@ case $ACTION in
             cd "$SCRIPT_DIR/telegram-proxy"
             docker compose restart
             ok "Telegram Proxy restarted"
+        fi
+        
+        if [ "$WIREGUARD_RUNNING" = true ]; then
+            log "Restarting WireGuard Panel..."
+            cd "$SCRIPT_DIR/wireguard-panel"
+            docker compose restart
+            ok "WireGuard Panel restarted"
         fi
         ;;
         
@@ -197,6 +204,13 @@ case $ACTION in
             docker compose down
             ok "Telegram Proxy stopped"
         fi
+        
+        if [ "$WIREGUARD_RUNNING" = true ]; then
+            log "Stopping WireGuard Panel..."
+            cd "$SCRIPT_DIR/wireguard-panel"
+            docker compose down
+            ok "WireGuard Panel stopped"
+        fi
         ;;
         
     start)
@@ -206,28 +220,61 @@ case $ACTION in
         echo "Select services to start:"
         echo "1) HTTP Proxy only"
         echo "2) Telegram Proxy only"
-        echo "3) Both services"
+        echo "3) WireGuard Panel only"
+        echo "4) HTTP + Telegram"
+        echo "5) HTTP + WireGuard"
+        echo "6) Telegram + WireGuard"
+        echo "7) All services"
         echo "0) Back to main menu"
         echo ""
         read -p "Enter choice: " START_CHOICE
         
+        start_http() {
+            cd "$SCRIPT_DIR/http-proxy"
+            docker compose up -d
+        }
+        start_telegram() {
+            cd "$SCRIPT_DIR/telegram-proxy"
+            docker compose up -d
+        }
+        start_wireguard() {
+            cd "$SCRIPT_DIR/wireguard-panel"
+            docker compose up -d
+        }
+        
         case $START_CHOICE in
             1)
-                cd "$SCRIPT_DIR/http-proxy"
-                docker compose up -d
+                start_http
                 ok "HTTP Proxy started"
                 ;;
             2)
-                cd "$SCRIPT_DIR/telegram-proxy"
-                docker compose up -d
+                start_telegram
                 ok "Telegram Proxy started"
                 ;;
             3)
-                cd "$SCRIPT_DIR/http-proxy"
-                docker compose up -d
-                cd "$SCRIPT_DIR/telegram-proxy"
-                docker compose up -d
-                ok "Both services started"
+                start_wireguard
+                ok "WireGuard Panel started"
+                ;;
+            4)
+                start_http
+                start_telegram
+                ok "HTTP + Telegram started"
+                ;;
+            5)
+                start_http
+                start_wireguard
+                ok "HTTP + WireGuard started"
+                ;;
+            6)
+                start_telegram
+                start_wireguard
+                ok "Telegram + WireGuard started"
+                ;;
+            7)
+                start_http
+                start_telegram
+                start_wireguard
+                ok "All services started"
                 ;;
             0)
                 exec "$SCRIPT_DIR/manage.sh"
@@ -256,6 +303,14 @@ case $ACTION in
             docker compose pull
             docker compose up -d
             ok "Telegram Proxy updated"
+        fi
+        
+        if [ "$WIREGUARD_RUNNING" = true ]; then
+            log "Updating WireGuard Panel..."
+            cd "$SCRIPT_DIR/wireguard-panel"
+            docker compose pull
+            docker compose up -d
+            ok "WireGuard Panel updated"
         fi
         ;;
         

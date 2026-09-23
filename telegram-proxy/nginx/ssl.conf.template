@@ -1,8 +1,9 @@
-# Port 8443 — HTTPS with real Let's Encrypt certificate
+# Port 8444 — HTTPS with real Let's Encrypt certificate
 # Internal only — telemt forwards unrecognized connections here via mask_host/mask_port.
-# Port 8443 is NOT exposed publicly; only telemt reaches it via the Docker internal network.
+# Port 8444 is NOT exposed publicly; only telemt reaches it via the Docker internal network.
+# (Port 8443 is used by the WireGuard Panel reverse proxy.)
 server {
-    listen 8443 ssl;
+    listen 8444 ssl;
     server_name {{DOMAIN}};
 
     ssl_certificate     /etc/letsencrypt/live/{{DOMAIN}}/fullchain.pem;
