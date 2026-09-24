@@ -159,12 +159,6 @@ install_amneziawg_module() {
         return 0
     fi
 
-    # Install prerequisites
-    if ! apt install -y software-properties-common python3-launchpadlib gnupg2 "linux-headers-$(uname -r)"; then
-        warn "Failed to install amneziawg build prerequisites"
-        return 1
-    fi
-
     # Ensure source repositories (deb-src) are enabled — required by the DKMS build
     if ! ensure_deb_src; then
         warn "Could not enable deb-src repositories"
@@ -182,6 +176,12 @@ deb https://ppa.launchpadcontent.net/amnezia/ppa/ubuntu focal main
 deb-src https://ppa.launchpadcontent.net/amnezia/ppa/ubuntu focal main
 EOF
         apt update || { warn "apt update failed after adding amnezia PPA"; return 1; }
+    fi
+
+    # Install prerequisites
+    if ! apt install -y software-properties-common python3-launchpadlib gnupg2 "linux-headers-$(uname -r)"; then
+        warn "Failed to install amneziawg build prerequisites"
+        return 1
     fi
 
     # Install the DKMS package (builds the module for the running kernel)
