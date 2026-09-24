@@ -64,7 +64,7 @@ chmod +x deploy.sh
 - **VPN Endpoint**: `VPS_IP:51820/udp`
 - **Data**: stored in `wireguard-panel/data/` (client configs, keys)
 - **Clients**: created via the web panel (QR codes, .conf download)
-- **AmneziaWG (optional)**: protocol obfuscation against DPI — enabled at deployment time; requires the `amneziawg` kernel module (installed automatically via PPA) and AmneziaWG-compatible clients
+- **AmneziaWG (optional)**: protocol obfuscation against DPI — enabled at deployment time; requires the `amneziawg` kernel module (installed automatically via PPA; the script enables `deb-src` source repositories if needed) and AmneziaWG-compatible clients
 
 ## Single Reverse Proxy (nginx)
 
@@ -77,6 +77,8 @@ When Telegram Proxy or/and WireGuard Panel is selected, a single nginx gateway
 | 443 | telemt (FakeTLS MTProto) |
 | 8443 | WireGuard Panel (https://DOMAIN:8443) |
 | 8444 | Internal: cover site for telemt (not exposed publicly) |
+
+Nginx and the WireGuard Panel are connected via the shared Docker network `revers-proxy-net`: the panel is reachable from nginx by the container name `wg-easy`, and the panel port 51821 is not exposed publicly.
 
 If only one of the services is selected, nginx is deployed for it. If none — nginx is not deployed.
 

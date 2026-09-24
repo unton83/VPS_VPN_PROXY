@@ -73,3 +73,14 @@ services:
         reservations:
           cpus: "0.25"
           memory: 256M
+
+    # Attach to the shared reverse proxy network so nginx can reach the panel directly
+    networks:
+      wg_proxy:
+        ipv4_address: 172.29.0.12
+
+networks:
+  wg_proxy:
+    # Network created by the telegram-proxy compose project (nginx gateway)
+    external: true
+    name: revers-proxy-net

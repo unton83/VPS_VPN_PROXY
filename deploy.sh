@@ -86,6 +86,69 @@ add_amnezia_gpg_key() {
     fi
 }
 
+# Ensure APT source repositories (deb-src) are enabled — required by the amneziawg DKMS
+# package, which downloads the kernel source tree via `apt source`.
+# Handles both classic sources.list and deb822 format (*.sources, Debian 12+ default).
+ensure_deb_src() {
+    log "Checking APT source repositories (deb-src)..."
+
+    # Already enabled somewhere (classic or deb822 format)
+    if grep -rhq '^deb-src\|^Types:.*deb-src' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
+        ok "deb-src source repositories are already enabled"
+        return 0
+    fi
+
+    local changed=false
+
+    # deb822 format files (*.sources)
+    for f in /etc/apt/sources.list.d/*.sources; do
+        [ -f "$f" ] || continue
+        if grep -q '^Types: deb$' "$f"; then
+            sed -i 's/^Types: deb$/Types: deb deb-src/' "$f"
+            changed=true
+            log "Enabled deb-src in $f"
+        fi
+    done
+
+    # Classic format (/etc/apt/sources.list): mirror every 'deb' line as 'deb-src'
+    if [ -f /etc/apt/sources.list ] && ! grep -hq '^deb-src' /etc/apt/sources.list; then
+        local src_lines=""
+        while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in
+                ''|'#'*) continue ;;
+                'deb '*)
+                    src_lines="${src_lines}${line/deb /deb-src }
+"
+                    ;;
+            esac
+        done < /etc/apt/sources.list
+        if [ -n "$src_lines" ]; then
+            printf '%s' "$src_lines" >> /etc/apt/sources.list
+            changed=true
+            log "Added deb-src lines to /etc/apt/sources.list"
+        fi
+    fi
+
+    # Fallback: add a generic deb-src entry for Debian
+    if [ "$changed" = false ]; then
+        local codename=""
+        codename=$(. /etc/os-release && echo "${VERSION_CODENAME:-bookworm}")
+        echo "deb-src http://deb.debian.org/debian ${codename} main" >> /etc/apt/sources.list
+        changed=true
+        warn "Added fallback deb-src line to /etc/apt/sources.list"
+    fi
+
+    if [ "$changed" = true ]; then
+        log "Updating APT indexes with source repositories..."
+        if ! apt update; then
+            warn "apt update failed after enabling deb-src"
+            return 1
+        fi
+    fi
+
+    ok "APT source repositories are ready"
+}
+
 # Install the AmneziaWG kernel module on the host (required for EXPERIMENTAL_AWG)
 # Official method for Debian: https://github.com/amnezia-vpn/amneziawg-linux-kernel-module#debian
 install_amneziawg_module() {
@@ -99,6 +162,12 @@ install_amneziawg_module() {
     # Install prerequisites
     if ! apt install -y software-properties-common python3-launchpadlib gnupg2 "linux-headers-$(uname -r)"; then
         warn "Failed to install amneziawg build prerequisites"
+        return 1
+    fi
+
+    # Ensure source repositories (deb-src) are enabled — required by the DKMS build
+    if ! ensure_deb_src; then
+        warn "Could not enable deb-src repositories"
         return 1
     fi
 

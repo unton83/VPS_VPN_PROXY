@@ -238,6 +238,9 @@ case $ACTION in
             docker compose up -d
         }
         start_wireguard() {
+            # Ensure the shared reverse proxy network exists (panel is exposed via nginx on 8443)
+            cd "$SCRIPT_DIR/telegram-proxy"
+            docker compose up -d web 2>/dev/null || true
             cd "$SCRIPT_DIR/wireguard-panel"
             docker compose up -d
         }

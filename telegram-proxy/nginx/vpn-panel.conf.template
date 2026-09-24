@@ -1,6 +1,6 @@
 # Port 8443 — WireGuard Panel (wg-easy) behind TLS
 # Generated from vpn-panel.conf.template by deploy.sh.
-# Proxy target: wg-easy panel bound to 127.0.0.1:51821 on the host.
+# Proxy target: wg-easy container via the shared "revers-proxy-net" Docker network.
 # Same certificate as the main domain (single-domain setup).
 server {
     listen 8443 ssl;
@@ -24,7 +24,7 @@ server {
     client_max_body_size 10m;
 
     location / {
-        proxy_pass http://host.docker.internal:51821;
+        proxy_pass http://wg-easy:51821;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
         proxy_set_header X-Real-IP         $remote_addr;
