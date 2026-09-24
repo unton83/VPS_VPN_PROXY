@@ -110,8 +110,11 @@ ensure_deb_src() {
         fi
     done
 
-    # Classic format (/etc/apt/sources.list): mirror every 'deb' line as 'deb-src'
-    if [ -f /etc/apt/sources.list ] && ! grep -hq '^deb-src' /etc/apt/sources.list; then
+    # Classic format: mirror every 'deb' line as 'deb-src' in the same file.
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do
+        [ -f "$f" ] || continue
+        grep -q '^deb-src' "$f" && continue
+
         local src_lines=""
         while IFS= read -r line || [ -n "$line" ]; do
             case "$line" in
@@ -121,13 +124,13 @@ ensure_deb_src() {
 "
                     ;;
             esac
-        done < /etc/apt/sources.list
+        done < "$f"
         if [ -n "$src_lines" ]; then
-            printf '%s' "$src_lines" >> /etc/apt/sources.list
+            printf '%s' "$src_lines" >> "$f"
             changed=true
-            log "Added deb-src lines to /etc/apt/sources.list"
+            log "Added deb-src lines to $f"
         fi
-    fi
+    done
 
     # Fallback: add a generic deb-src entry for Debian
     if [ "$changed" = false ]; then
@@ -936,6 +939,13 @@ if [ "$DEPLOY_TELEGRAM" = true ] || [ "$DEPLOY_WIREGUARD" = true ]; then
                 > "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/vpn-panel.conf"
         fi
         
+        # Validate the generated configuration before applying it
+        if ! docker compose exec -T web nginx -t; then
+            rm -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/ssl.conf" \
+                  "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/vpn-panel.conf"
+            err "nginx configuration test failed - see the errors above"
+        fi
+        
         if ! docker compose exec -T web nginx -s reload; then
             err "Failed to reload nginx configuration"
         fi
@@ -990,6 +1000,26 @@ if [ "$DEPLOY_WIREGUARD" = true ]; then
             sed -i '/^INIT_PASSWORD=/d' .env
             sed -i '/^INIT_USERNAME=/d' .env
             log "Removed initial admin credentials from .env (saved in deployment_info.txt)"
+        fi
+        
+        # End-to-end check: the panel must be reachable through the nginx gateway
+        if [ -f "$SCRIPT_DIR/telegram-proxy/nginx/conf.d/vpn-panel.conf" ]; then
+            log "Verifying the panel through nginx (https://$DOMAIN:8443)..."
+            PANEL_REACHABLE=false
+            for i in $(seq 1 10); do
+                if curl -sfk --max-time 10 "https://$DOMAIN:8443" >/dev/null 2>&1; then
+                    PANEL_REACHABLE=true
+                    break
+                fi
+                sleep 3
+            done
+            
+            if [ "$PANEL_REACHABLE" = true ]; then
+                ok "WireGuard Panel is reachable at https://$DOMAIN:8443"
+            else
+                warn "Panel is not reachable at https://$DOMAIN:8443 yet"
+                warn "Check nginx logs: cd $SCRIPT_DIR/telegram-proxy && docker compose logs web"
+            fi
         fi
     )
     ok "WireGuard Panel started (VPN on UDP 51820)"
