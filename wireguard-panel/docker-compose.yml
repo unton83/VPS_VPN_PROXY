@@ -26,8 +26,8 @@ services:
     ports:
       # Web Panel (TCP) — bound to localhost only, exposed via nginx reverse proxy on 8443
       - "127.0.0.1:51821:51821/tcp"
-      # WireGuard VPN (UDP) — public
-      - "51820:51820/udp"
+      # WireGuard VPN (UDP) — public; host and container ports follow INIT_PORT from .env
+      - "${INIT_PORT:-51820}:${INIT_PORT:-51820}/udp"
 
     # Persistent storage
     volumes:
